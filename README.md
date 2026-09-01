@@ -142,9 +142,9 @@ The current prototype uses mock scores for demonstration purposes. The scoring e
 
 Explainability is an important part of WealthLens.
 
-Instead of displaying only a risk or relevance score, each intelligence card explains the reasoning behind the item: the market or portfolio trigger, why it matters to this specific client, the estimated impact, and a suggested prepared action.
+Instead of displaying only a risk or relevance score, the system explains the reasoning behind an intelligence item.
 
-The reasoning follows this chain:
+For example:
 
 **Market Development**
 
@@ -178,9 +178,15 @@ Relationship Managers can inspect the underlying evidence before deciding whethe
 
 ### Evidence & Traceability
 
-Each intelligence item is tied to a specific client and surfaces the supporting signals behind it (for example portfolio exposure, concentration thresholds, and upcoming liquidity needs). Client profiles and briefings link back to the same intelligence, so a Relationship Manager can trace where an insight originated rather than relying on an unexplained conclusion.
+Each intelligence item can display supporting information from sources such as:
 
-A deeper evidence panel drawing on additional sources (research, market developments, full holdings) is planned for a later iteration.
+* Portfolio holdings
+* Client profile
+* Client objectives
+* Market developments
+* Scenario analysis
+
+This allows the Relationship Manager to understand where an insight originated rather than relying on an unexplained AI-generated conclusion.
 
 ---
 
@@ -223,11 +229,11 @@ The purpose is to reduce preparation time while keeping the Relationship Manager
 
 ---
 
-### Client View (planned)
+### Client View
 
-A future iteration will demonstrate how complex intelligence can be translated into a simpler client-facing experience.
+WealthLens also demonstrates how complex intelligence could be translated into a simpler client experience.
 
-Relationship Managers receive detailed analysis, while clients would receive understandable explanations of:
+Relationship Managers receive detailed analysis, while clients receive understandable explanations of:
 
 * What happened
 * How their portfolio may be affected
@@ -250,7 +256,7 @@ The current prototype uses:
 * **Lucide React**
 * **React Router**
 
-The Vite build produces a standard static `dist/` bundle, so the application can be deployed to any static host (for example Vercel, Netlify, or Amazon S3 with CloudFront).
+The application is designed for deployment using **Vercel**.
 
 ---
 
@@ -295,55 +301,47 @@ The architecture is intentionally modular so that future APIs, AI models, databa
 wealthlens/
 │
 ├── public/
-│   └── favicon.svg
 │
 ├── src/
 │   ├── components/
-│   │   ├── Sidebar.jsx        # Persistent left navigation
-│   │   ├── Topbar.jsx         # Search, notifications, RM profile
-│   │   ├── SignalCard.jsx     # Reusable intelligence card
-│   │   └── ui.jsx             # Shared primitives (Card, Badge, Stat, etc.)
+│   │   ├── Sidebar
+│   │   ├── Header
+│   │   ├── KPICard
+│   │   ├── IntelligenceCard
+│   │   ├── RelevanceScore
+│   │   ├── EvidencePanel
+│   │   └── PortfolioChart
 │   │
 │   ├── pages/
-│   │   ├── Overview.jsx       # RM intelligence dashboard
-│   │   ├── Clients.jsx        # Searchable, filterable client table
-│   │   ├── ClientDetail.jsx   # Client profile
-│   │   ├── Intelligence.jsx   # Prioritised intelligence feed
-│   │   ├── Portfolios.jsx     # Book composition and performance
-│   │   ├── ScenarioLab.jsx    # Interactive market-shock modelling
-│   │   ├── Briefings.jsx      # RM meeting briefings
-│   │   └── NotFound.jsx
+│   │   ├── Dashboard
+│   │   ├── Clients
+│   │   ├── ClientProfile
+│   │   ├── Intelligence
+│   │   ├── ScenarioLab
+│   │   ├── Briefings
+│   │   └── ClientView
 │   │
-│   ├── data/                  # Mock data (swappable for a REST API)
-│   │   ├── rm.js
+│   ├── data/
 │   │   ├── clients.js
 │   │   ├── portfolios.js
 │   │   ├── intelligence.js
-│   │   ├── briefings.js
-│   │   └── market.js
+│   │   ├── marketEvents.js
+│   │   └── scenarios.js
 │   │
 │   ├── services/
-│   │   └── dataService.js     # Single seam between UI and data source
+│   │   ├── clientService.js
+│   │   ├── portfolioService.js
+│   │   └── intelligenceService.js
 │   │
-│   ├── utils/
-│   │   └── format.js          # Currency, percentage and date helpers
-│   │
-│   ├── styles/
-│   │   └── global.css         # Design tokens and component styles
-│   │
-│   ├── App.jsx                # Routing and app shell
+│   ├── App.jsx
 │   └── main.jsx
 │
 ├── index.html
 ├── package.json
 ├── vite.config.js
-└── README
+├── vercel.json
+└── README.md
 ```
-
-All UI reads data through `services/dataService.js`, which today returns mock
-data from the `data/` files. To move to a live backend, replace the function
-bodies in that one file with API calls, keeping the same signatures and return
-shapes. The rest of the frontend does not change.
 
 The exact structure may change as development progresses.
 
@@ -380,8 +378,16 @@ npm run build
 
 ## Deployment
 
-`npm run build` outputs a static bundle to `dist/`, which can be served by any
-static host. The build configuration for most platforms is:
+The application is configured for deployment on Vercel.
+
+### Deploy through GitHub
+
+1. Push the project to GitHub.
+2. Sign in to Vercel.
+3. Select **Add New → Project**.
+4. Import the GitHub repository.
+5. Select **Vite** as the framework if it is not automatically detected.
+6. Confirm the build configuration.
 
 ```text
 Build Command: npm run build
@@ -389,19 +395,9 @@ Output Directory: dist
 Install Command: npm install
 ```
 
-### Deploy through GitHub (example: Vercel or Netlify)
+7. Deploy the project.
 
-1. Push the project to GitHub.
-2. Sign in to your hosting provider and import the GitHub repository.
-3. Select **Vite** as the framework if it is not detected automatically.
-4. Confirm the build configuration shown above.
-5. Deploy the project.
-
-Because WealthLens is a client-side single-page app, configure the host to
-rewrite unknown routes to `index.html` so that deep links (such as a client
-profile URL) resolve correctly.
-
-Future pushes to the connected branch can automatically trigger new deployments.
+Future pushes to the connected GitHub branch can automatically trigger new deployments.
 
 ---
 
