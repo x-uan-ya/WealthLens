@@ -28,6 +28,14 @@ export const clients = [
       { label: 'Fixed income', pct: 14 },
       { label: 'Cash', pct: 10 },
     ],
+    investmentHorizonYears: 7,
+    liquidityRequirement: { amount: 300000, months: 4 },
+    goals: [
+      'Preserve long-term wealth',
+      'Moderate capital growth',
+      'S$300,000 liquidity requirement within 4 months',
+      'Investment horizon: 7 years',
+    ],
     objectives: [
       'Grow capital through technology exposure',
       'Free up liquidity for a property completion in Q4',
@@ -61,6 +69,14 @@ export const clients = [
       { label: 'Private markets', pct: 9 },
       { label: 'Cash', pct: 5 },
     ],
+    investmentHorizonYears: 15,
+    liquidityRequirement: { amount: 5000000, months: 12 },
+    goals: [
+      'Preserve capital across generations',
+      'Grow allocation to sustainable strategies',
+      'S$5,000,000 liquidity requirement within 12 months',
+      'Investment horizon: 15 years',
+    ],
     objectives: [
       'Preserve capital across generations',
       'Increase allocation to sustainable strategies',
@@ -92,6 +108,14 @@ export const clients = [
       { label: 'Fixed income', pct: 8 },
       { label: 'Private markets', pct: 20 },
       { label: 'Cash', pct: 11 },
+    ],
+    investmentHorizonYears: 10,
+    liquidityRequirement: { amount: 8000000, months: 6 },
+    goals: [
+      'Grow capital through concentrated conviction',
+      'Diversify away from single-stock concentration',
+      'S$8,000,000 liquidity requirement within 6 months',
+      'Investment horizon: 10 years',
     ],
     objectives: [
       'Diversify away from single-stock concentration',
@@ -125,6 +149,14 @@ export const clients = [
       { label: 'Real estate', pct: 12 },
       { label: 'Cash', pct: 12 },
     ],
+    investmentHorizonYears: 20,
+    liquidityRequirement: { amount: 12000000, months: 3 },
+    goals: [
+      'Protect purchasing power against inflation',
+      'Stable income distribution to family members',
+      'S$12,000,000 liquidity requirement within 3 months',
+      'Investment horizon: 20 years',
+    ],
     objectives: [
       'Protect purchasing power against inflation',
       'Stable income distribution to family members',
@@ -156,6 +188,14 @@ export const clients = [
       { label: 'Fixed income', pct: 18 },
       { label: 'Private markets', pct: 14 },
       { label: 'Cash', pct: 14 },
+    ],
+    investmentHorizonYears: 8,
+    liquidityRequirement: { amount: 4000000, months: 9 },
+    goals: [
+      'Grow capital with regional equity exposure',
+      'Allocate to credible ESG strategies',
+      'S$4,000,000 liquidity requirement within 9 months',
+      'Investment horizon: 8 years',
     ],
     objectives: [
       'Grow capital with regional equity exposure',
@@ -189,6 +229,14 @@ export const clients = [
       { label: 'Real estate', pct: 10 },
       { label: 'Cash', pct: 10 },
     ],
+    investmentHorizonYears: 12,
+    liquidityRequirement: { amount: 1500000, months: 6 },
+    goals: [
+      'Generate predictable retirement income',
+      'Preserve capital with low volatility',
+      'S$1,500,000 liquidity requirement within 6 months',
+      'Investment horizon: 12 years',
+    ],
     objectives: [
       'Generate predictable retirement income',
       'Minimise interest rate reinvestment risk',
@@ -221,6 +269,14 @@ export const clients = [
       { label: 'Real estate', pct: 14 },
       { label: 'Fixed income', pct: 8 },
       { label: 'Cash', pct: 6 },
+    ],
+    investmentHorizonYears: 9,
+    liquidityRequirement: { amount: 6000000, months: 5 },
+    goals: [
+      'Access differentiated private market deals',
+      'Diversify concentrated luxury-sector exposure',
+      'S$6,000,000 liquidity requirement within 5 months',
+      'Investment horizon: 9 years',
     ],
     objectives: [
       'Access differentiated private market deals',
