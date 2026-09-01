@@ -1,14 +1,42 @@
 // Mock intelligence signals — the heart of WealthLens.
 // Each signal connects a market/portfolio event to a specific client,
-// explains WHY it matters to that client, and suggests a prepared action.
+// explains WHY it matters to that client, and quantifies relevance.
 //
 // This shape is intentionally API-ready. A future service returns the same
 // objects from e.g. GET /api/intelligence.
 //
-// priority: 'high' | 'medium' | 'low'
-// category: 'Market' | 'Portfolio' | 'Life event' | 'Regulatory' | 'Liquidity' | 'Relationship'
+// Field notes:
+//   priority       'high' | 'medium' | 'low'
+//   category       'Market' | 'Portfolio' | 'Life event' | 'Regulatory' | 'Liquidity' | 'Relationship'
+//   relevanceScore 0..100  — how relevant this development is to THIS client
+//   exposurePct    number  — the portfolio exposure the signal concerns
+//   scenarioImpact number  — modelled monetary impact (desk currency, negative = downside)
+//   confidence     0..1    — engine confidence in the signal
 
 export const intelligenceSignals = [
+  {
+    id: 'sig-000',
+    priority: 'high',
+    category: 'Portfolio',
+    clientId: 'cl-000',
+    clientName: 'Catherine Tan',
+    headline: 'Semiconductor Concentration Requires Attention',
+    relevanceScore: 92,
+    exposurePct: 27.8,
+    scenarioImpact: -146000,
+    trigger: 'Semiconductor holdings now represent 27.8% of the portfolio after a sector-wide re-rating and recent volatility.',
+    why: 'Technology concentration combined with an upcoming liquidity requirement increases the relevance of recent semiconductor volatility. A drawdown ahead of the Q4 property completion could force a sale at an unfavourable moment.',
+    impact: 'A modelled sector pullback would reduce portfolio value by roughly S$146,000.',
+    signals: [
+      'Semiconductor exposure at 27.8% of the portfolio',
+      'Sector implied volatility elevated ahead of earnings',
+      'Liquidity needed for a property completion in Q4',
+    ],
+    suggestedAction: 'Prepare a partial de-risking plan that also secures the Q4 liquidity requirement.',
+    confidence: 0.9,
+    createdAt: '2026-08-31',
+    horizon: 'This week',
+  },
   {
     id: 'sig-001',
     priority: 'high',
@@ -16,9 +44,12 @@ export const intelligenceSignals = [
     clientId: 'cl-002',
     clientName: 'Henrik Falk',
     headline: 'Single-stock concentration now exceeds 30% of portfolio',
+    relevanceScore: 88,
+    exposurePct: 31.4,
+    scenarioImpact: -2100000,
     trigger: 'Nordic Tech Holding rose 19% over 12 months, lifting its weight to 31.4%.',
     why: 'Henrik has repeatedly stated a goal of reducing single-name risk, yet the position has grown through appreciation rather than new purchases. A drawdown in this one holding would now materially impair the whole mandate.',
-    impact: 'A 25% fall in the core holding would reduce total portfolio value by roughly CHF 21m.',
+    impact: 'A 25% fall in the core holding would reduce total portfolio value by roughly S$2.1m.',
     signals: [
       'Position weight crossed the 30% internal concentration threshold',
       'Implied volatility on the stock is up 40% ahead of earnings',
@@ -35,16 +66,19 @@ export const intelligenceSignals = [
     category: 'Market',
     clientId: 'cl-003',
     clientName: 'The Vásquez Family Office',
-    headline: 'EUR/USD move threatens income stability for a FX-sensitive client',
-    trigger: 'EUR strengthened 3.1% against USD this month; a large share of income-producing assets is USD denominated.',
-    why: 'The Vásquez family relies on stable EUR distributions. Currency translation, not markets, is the real risk here, and it is not currently hedged. This directly touches their stated objective of predictable family income.',
-    impact: 'Unhedged FX drift could reduce distributable EUR income by an estimated 2 to 4% this year.',
+    headline: 'Currency move threatens income stability for an FX-sensitive client',
+    relevanceScore: 84,
+    exposurePct: 38.0,
+    scenarioImpact: -410000,
+    trigger: 'The base currency strengthened 3.1% against USD this month; a large share of income-producing assets is USD denominated.',
+    why: 'The Vásquez family relies on stable distributions. Currency translation, not markets, is the real risk here, and it is not currently hedged. This directly touches their stated objective of predictable family income.',
+    impact: 'Unhedged FX drift could reduce distributable income by an estimated 2 to 4% this year.',
     signals: [
       '38% of income assets are USD denominated',
       'No standing FX hedge on the mandate',
       'Next family distribution scheduled in six weeks',
     ],
-    suggestedAction: 'Present a partial EUR/USD forward hedge sized to the next two distributions.',
+    suggestedAction: 'Present a partial forward hedge sized to the next two distributions.',
     confidence: 0.79,
     createdAt: '2026-08-30',
     horizon: 'This month',
@@ -56,9 +90,12 @@ export const intelligenceSignals = [
     clientId: 'cl-001',
     clientName: 'Amara Okonkwo',
     headline: 'Wealth-transfer window aligns with a stated multi-generational goal',
+    relevanceScore: 66,
+    exposurePct: 100,
+    scenarioImpact: null,
     trigger: 'Client mentioned both heirs completing university this year during the last review.',
     why: 'Amara has named next-gen transfer as a priority for three consecutive reviews. This is a natural moment to formalise structures before year-end, and acting now signals genuine attentiveness rather than a product push.',
-    impact: 'Timely structuring could improve continuity and reduce future transfer friction across CHF 312m.',
+    impact: 'Timely structuring could improve continuity and reduce future transfer friction across S$312m.',
     signals: [
       'Two heirs reaching financial-independence milestones',
       'No formal transfer structure currently in place',
@@ -76,6 +113,9 @@ export const intelligenceSignals = [
     clientId: 'cl-005',
     clientName: 'Dr. Wilhelm Braun',
     headline: 'Contact cadence has lapsed beyond the agreed interval',
+    relevanceScore: 58,
+    exposurePct: null,
+    scenarioImpact: null,
     trigger: 'Last meaningful contact was 75 days ago against an agreed 60-day cadence.',
     why: 'Dr. Braun is a long-standing conservative client who values reliability over performance. Silence itself is a risk signal for this relationship, independent of any market event.',
     impact: 'Relationship risk rather than financial risk; erosion of trust with a 13-year client.',
@@ -96,6 +136,9 @@ export const intelligenceSignals = [
     clientId: 'cl-004',
     clientName: 'Mei-Ling Chen',
     headline: 'ESG allocation gap versus a clearly stated client preference',
+    relevanceScore: 54,
+    exposurePct: 8.6,
+    scenarioImpact: null,
     trigger: 'Client asked for credible ESG exposure, but sustainable strategies remain under 9% of the portfolio.',
     why: 'Mei-Ling explicitly asked for this and is an engaged, growing relationship. Closing the gap serves both her stated intent and the desk growth objective, and she is receptive to well-evidenced proposals.',
     impact: 'Opportunity to deepen a growth-tier relationship and align the portfolio with intent.',
@@ -116,6 +159,9 @@ export const intelligenceSignals = [
     clientId: 'cl-006',
     clientName: 'Sofia Marchetti',
     headline: 'Upcoming capital call may strain available liquidity',
+    relevanceScore: 42,
+    exposurePct: 28.0,
+    scenarioImpact: -320000,
     trigger: 'A private equity co-investment has a capital call due next month.',
     why: 'Sofia holds a high private-markets weight with limited cash. A call arriving alongside other commitments could force a poorly-timed sale of liquid assets if not planned in advance.',
     impact: 'Potential forced liquidation of liquid holdings at an inopportune moment.',
@@ -136,6 +182,9 @@ export const intelligenceSignals = [
     clientId: 'cl-005',
     clientName: 'Dr. Wilhelm Braun',
     headline: 'Rate path shift creates a reinvestment opportunity',
+    relevanceScore: 38,
+    exposurePct: 58.0,
+    scenarioImpact: 90000,
     trigger: 'Market pricing now implies one fewer rate cut this year than a month ago.',
     why: 'Dr. Braun runs a bond ladder for retirement income. Maturities reinvested at current yields could modestly lift durable income, matching his primary objective without adding risk.',
     impact: 'Modest, durable uplift to retirement income with no change in risk profile.',

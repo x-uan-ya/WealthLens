@@ -743,6 +743,85 @@ button {
   font-size: 13.5px;
   color: var(--ink-muted);
 }
+.signal-client-name {
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--gold);
+}
+.signal-client-name a:hover {
+  color: var(--primary);
+}
+
+/* Quantified relevance strip */
+.signal-metrics {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.signal-metric {
+  min-width: 120px;
+}
+.signal-metric .sm-label {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.signal-metric .sm-label svg {
+  color: var(--gold);
+}
+.signal-metric .sm-value {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  font-weight: 600;
+  margin-top: 5px;
+  letter-spacing: -0.01em;
+}
+.signal-metric .sm-value.neg {
+  color: var(--danger);
+}
+.signal-metric .sm-value.pos {
+  color: var(--ok);
+}
+.signal-metric .sm-unit {
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+  font-weight: 500;
+}
+.signal-metric .sm-bar {
+  margin-top: 8px;
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.signal-metric .sm-bar span {
+  display: block;
+  height: 100%;
+  background: var(--gold-soft);
+  border-radius: 3px;
+}
+
+.signal-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
 .signal-trigger {
   margin: 14px 0 0;
   color: var(--ink-soft);
@@ -868,6 +947,52 @@ button {
   font-size: 12px;
   color: rgba(234, 240, 242, 0.6);
   margin-top: 2px;
+}
+
+/* ==========================================================================
+   KPI cards
+   ========================================================================== */
+.kpi {
+  padding: 22px 22px 20px;
+}
+.kpi-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--primary-tint);
+  color: var(--primary);
+  margin-bottom: 16px;
+}
+.kpi-icon-high {
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+.kpi-icon-muted {
+  background: var(--surface-2);
+  color: var(--ink-muted);
+}
+.kpi-value {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.kpi-value.neg {
+  color: var(--danger);
+}
+.kpi-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: 10px;
+}
+.kpi-note {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 3px;
 }
 
 /* ==========================================================================

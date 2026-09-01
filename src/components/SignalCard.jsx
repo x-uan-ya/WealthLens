@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Lightbulb, TrendingUp, Clock } from 'lucide-react'
-import { PriorityBadge, Badge, Confidence } from './ui.jsx'
-import { formatDate } from '../utils/format.js'
+import { Lightbulb, Clock, FileText, Gauge } from 'lucide-react'
+import { PriorityBadge, Badge } from './ui.jsx'
+import { formatDate, formatMoney, formatPct } from '../utils/format.js'
 
 // The signal card is the core storytelling unit of WealthLens:
 // what happened (trigger) -> who it affects (client) -> why it matters (why)
-// -> what to do (suggestedAction). Compact and full variants.
+// -> quantified relevance -> what to do. Compact and full variants.
 
 export default function SignalCard({ signal, variant = 'full' }) {
   if (variant === 'compact') {
@@ -31,6 +31,8 @@ export default function SignalCard({ signal, variant = 'full' }) {
     )
   }
 
+  const impactTone = signal.scenarioImpact != null && signal.scenarioImpact < 0 ? 'neg' : 'pos'
+
   return (
     <div className="signal-card card">
       <div className="signal-accent" data-priority={signal.priority} />
@@ -44,30 +46,53 @@ export default function SignalCard({ signal, variant = 'full' }) {
               {signal.horizon}
             </span>
           </div>
-          <Confidence value={signal.confidence} />
         </div>
 
-        <h3 style={{ fontSize: 18, lineHeight: 1.3 }} className="serif">
+        {/* Client first — the signal is about a person, not a market */}
+        <div className="signal-client-name">
+          <Link to={`/clients/${signal.clientId}`}>{signal.clientName}</Link>
+        </div>
+
+        <h3 style={{ fontSize: 18, lineHeight: 1.3, marginTop: 2 }} className="serif">
           {signal.headline}
         </h3>
 
-        <div className="signal-client">
-          For{' '}
-          <Link className="link-gold" to={`/clients/${signal.clientId}`}>
-            {signal.clientName}
-          </Link>
+        {/* Quantified relevance strip */}
+        <div className="signal-metrics">
+          {signal.relevanceScore != null && (
+            <div className="signal-metric">
+              <div className="sm-label">
+                <Gauge size={13} /> Relevance score
+              </div>
+              <div className="sm-value">
+                {signal.relevanceScore}
+                <span className="sm-unit"> / 100</span>
+              </div>
+              <div className="sm-bar">
+                <span style={{ width: `${signal.relevanceScore}%` }} />
+              </div>
+            </div>
+          )}
+          {signal.exposurePct != null && (
+            <div className="signal-metric">
+              <div className="sm-label">Portfolio exposure</div>
+              <div className="sm-value">{formatPct(signal.exposurePct)}</div>
+            </div>
+          )}
+          {signal.scenarioImpact != null && (
+            <div className="signal-metric">
+              <div className="sm-label">Scenario impact</div>
+              <div className={`sm-value ${impactTone}`}>
+                {signal.scenarioImpact > 0 ? '+' : ''}
+                {formatMoney(signal.scenarioImpact, { compact: false })}
+              </div>
+            </div>
+          )}
         </div>
-
-        <p className="signal-trigger">{signal.trigger}</p>
 
         <div className="signal-why">
-          <div className="eyebrow" style={{ marginBottom: 6 }}>Why this matters</div>
+          <div className="eyebrow" style={{ marginBottom: 6 }}>Reason</div>
           <p style={{ margin: 0 }}>{signal.why}</p>
-        </div>
-
-        <div className="signal-impact">
-          <TrendingUp size={15} strokeWidth={2} />
-          <span>{signal.impact}</span>
         </div>
 
         <div className="signal-action">
@@ -78,13 +103,16 @@ export default function SignalCard({ signal, variant = 'full' }) {
           </div>
         </div>
 
-        <div className="row between" style={{ marginTop: 16 }}>
-          <span className="muted" style={{ fontSize: 12 }}>
+        <div className="signal-buttons">
+          <Link className="btn btn-primary btn-sm" to={`/clients/${signal.clientId}`}>
+            Review Intelligence
+          </Link>
+          <Link className="btn btn-sm" to="/briefings">
+            <FileText size={14} /> Prepare Brief
+          </Link>
+          <span className="muted" style={{ fontSize: 12, marginLeft: 'auto' }}>
             Detected {formatDate(signal.createdAt)}
           </span>
-          <Link className="link-gold" to={`/clients/${signal.clientId}`}>
-            Open client <ArrowRight size={14} />
-          </Link>
         </div>
       </div>
     </div>

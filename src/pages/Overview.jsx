@@ -1,17 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, ArrowDownRight, CalendarClock } from 'lucide-react'
-import { PageHeader, Card, Stat, Loading } from '../components/ui.jsx'
+import {
+  ArrowRight,
+  ArrowUpRight,
+  ArrowDownRight,
+  CalendarClock,
+  Users,
+  Activity,
+  AlertTriangle,
+  BellOff,
+} from 'lucide-react'
+import { PageHeader, Card, Loading } from '../components/ui.jsx'
 import SignalCard from '../components/SignalCard.jsx'
 import {
   getRelationshipManager,
-  getClients,
   getIntelligence,
   getBriefings,
   getMarketSnapshot,
   getMarketNarratives,
 } from '../services/dataService.js'
-import { formatChf, formatDateTime } from '../utils/format.js'
+import { formatDateTime } from '../utils/format.js'
 
 export default function Overview() {
   const [data, setData] = useState(null)
@@ -19,73 +27,73 @@ export default function Overview() {
   useEffect(() => {
     Promise.all([
       getRelationshipManager(),
-      getClients(),
       getIntelligence(),
       getBriefings(),
       getMarketSnapshot(),
       getMarketNarratives(),
-    ]).then(([rm, clients, signals, briefings, market, narratives]) => {
-      setData({ rm, clients, signals, briefings, market, narratives })
+    ]).then(([rm, signals, briefings, market, narratives]) => {
+      setData({ rm, signals, briefings, market, narratives })
     })
   }, [])
 
   if (!data) return <Loading label="Preparing your desk" />
 
-  const { rm, clients, signals, briefings, market, narratives } = data
+  const { rm, signals, briefings, market, narratives } = data
   const highPriority = signals.filter((s) => s.priority === 'high')
-  const topSignals = [...signals]
-    .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))
-    .slice(0, 3)
-  const totalAum = clients.reduce((sum, c) => sum + c.aumChf, 0)
+  const prioritySignals = [...signals].sort(byRelevance)
   const upcoming = [...briefings].sort(
     (a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor)
   )
+
+  const kpis = [
+    {
+      icon: Users,
+      value: rm.clientsMonitored,
+      label: 'Clients Monitored',
+      note: 'Across your book',
+    },
+    {
+      icon: Activity,
+      value: rm.marketDevelopmentsAnalysed,
+      label: 'Market Developments Analysed',
+      note: 'In the last 24 hours',
+    },
+    {
+      icon: AlertTriangle,
+      value: highPriority.length,
+      label: 'Clients Require Attention',
+      note: 'Time-sensitive situations',
+      tone: 'high',
+    },
+    {
+      icon: BellOff,
+      value: rm.lowRelevanceAlertsSuppressed,
+      label: 'Low-Relevance Alerts Suppressed',
+      note: 'Noise filtered on your behalf',
+      tone: 'muted',
+    },
+  ]
 
   return (
     <div>
       <PageHeader
         eyebrow="Tuesday, 1 September 2026"
         title={`Good morning, ${rm.name.split(' ')[0]}`}
-        subtitle="Here is what needs your attention today, ordered by what matters most to your clients."
+        subtitle="Here is what requires your attention today."
       />
 
-      {/* Hero: the value proposition, stated plainly */}
-      <div className="hero" style={{ marginBottom: 24 }}>
-        <div className="hero-eyebrow">Today&rsquo;s focus</div>
-        <h2>
-          {highPriority.length} client {highPriority.length === 1 ? 'situation' : 'situations'} need
-          a decision from you. Not {signals.length} alerts to triage.
-        </h2>
-        <p>
-          WealthLens reads market and portfolio movement, then surfaces only what is material to a
-          specific client, and explains why.
-        </p>
-        <div className="hero-stats">
-          <div className="hero-stat">
-            <div className="n">{clients.length}</div>
-            <div className="l">Active relationships</div>
-          </div>
-          <div className="hero-stat">
-            <div className="n">{signals.length}</div>
-            <div className="l">Signals reviewed</div>
-          </div>
-          <div className="hero-stat">
-            <div className="n">{highPriority.length}</div>
-            <div className="l">Need action now</div>
-          </div>
-          <div className="hero-stat">
-            <div className="n">{upcoming.length}</div>
-            <div className="l">Meetings prepared</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stat tiles */}
-      <div className="grid cols-4" style={{ marginBottom: 24 }}>
-        <Stat label="Book under management" value={formatChf(totalAum)} foot="across your clients" />
-        <Stat label="High-priority situations" value={highPriority.length} deltaTone="neg" delta="Act this week" />
-        <Stat label="Weighted YTD return" value={weightedReturn(clients)} deltaTone="pos" delta="vs benchmark" />
-        <Stat label="Briefings ready" value={`${briefings.filter((b) => b.status === 'Ready').length}/${briefings.length}`} foot="for upcoming meetings" />
+      {/* KPI cards */}
+      <div className="grid cols-4" style={{ marginBottom: 28 }}>
+        {kpis.map((k) => (
+          <Card className="kpi" key={k.label}>
+            <div className={`kpi-icon${k.tone ? ` kpi-icon-${k.tone}` : ''}`}>
+              <k.icon size={18} strokeWidth={2} />
+            </div>
+            <div className={`kpi-value${k.tone === 'high' ? ' neg' : ''}`}>{k.value}</div>
+            <div className="kpi-label">{k.label}</div>
+            <div className="kpi-note">{k.note}</div>
+          </Card>
+        ))}
       </div>
 
       {/* Market strip — deliberately understated */}
@@ -111,16 +119,21 @@ export default function Overview() {
       </Card>
 
       <div className="grid" style={{ gridTemplateColumns: '1.7fr 1fr', alignItems: 'start' }}>
-        {/* Priority signals */}
+        {/* Priority Intelligence */}
         <div>
           <div className="row between" style={{ marginBottom: 16 }}>
-            <h3 style={{ fontSize: 17 }} className="serif">What matters most today</h3>
+            <div>
+              <h3 style={{ fontSize: 18 }} className="serif">Priority Intelligence</h3>
+              <p className="muted" style={{ margin: '4px 0 0', fontSize: 13.5 }}>
+                Ranked by relevance to the client, not by how loud the market is.
+              </p>
+            </div>
             <Link className="link-gold" to="/intelligence">
               All intelligence <ArrowRight size={14} />
             </Link>
           </div>
           <div className="grid" style={{ gap: 18 }}>
-            {topSignals.map((s) => (
+            {prioritySignals.slice(0, 4).map((s) => (
               <SignalCard key={s.id} signal={s} />
             ))}
           </div>
@@ -174,12 +187,12 @@ export default function Overview() {
   )
 }
 
-function priorityRank(p) {
-  return { high: 0, medium: 1, low: 2 }[p] ?? 3
+// Higher relevance first; fall back to priority ordering.
+function byRelevance(a, b) {
+  const ar = a.relevanceScore ?? rankToScore(a.priority)
+  const br = b.relevanceScore ?? rankToScore(b.priority)
+  return br - ar
 }
-
-function weightedReturn(clients) {
-  const totalAum = clients.reduce((s, c) => s + c.aumChf, 0)
-  const w = clients.reduce((s, c) => s + c.ytdReturn * c.aumChf, 0) / totalAum
-  return `+${w.toFixed(1)}%`
+function rankToScore(p) {
+  return { high: 80, medium: 55, low: 35 }[p] ?? 0
 }

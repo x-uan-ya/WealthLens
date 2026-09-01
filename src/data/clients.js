@@ -1,7 +1,37 @@
 // Mock client book for a single Relationship Manager.
-// Monetary values are in CHF. Replace with GET /api/clients later.
+// Monetary values are in the desk currency (SGD). Replace with GET /api/clients later.
 
 export const clients = [
+  {
+    id: 'cl-000',
+    name: 'Catherine Tan',
+    segment: 'UHNW',
+    since: 2014,
+    domicile: 'Singapore, SG',
+    riskProfile: 'Growth',
+    mandate: 'Advisory',
+    aumChf: 52500000,
+    liquidityChf: 2100000,
+    ytdReturn: 8.9,
+    relationshipTier: 'Priority',
+    tags: ['Technology concentration', 'Semiconductors', 'Upcoming liquidity need'],
+    contact: {
+      lastContact: '2026-08-29',
+      preferred: 'In person',
+      cadenceDays: 30,
+    },
+    concentration: [
+      { label: 'Equities', pct: 64 },
+      { label: 'Private markets', pct: 12 },
+      { label: 'Fixed income', pct: 14 },
+      { label: 'Cash', pct: 10 },
+    ],
+    objectives: [
+      'Grow capital through technology exposure',
+      'Free up liquidity for a property completion in Q4',
+      'Reduce single-sector concentration over time',
+    ],
+  },
   {
     id: 'cl-001',
     name: 'Amara Okonkwo',

@@ -6,6 +6,29 @@ const series = (points) =>
   points.map(([month, portfolio, benchmark]) => ({ month, portfolio, benchmark }))
 
 export const portfolios = {
+  'cl-000': {
+    performance: series([
+      ['Sep', 100, 100],
+      ['Oct', 103.0, 101.1],
+      ['Nov', 106.8, 102.0],
+      ['Dec', 104.2, 101.4],
+      ['Jan', 108.9, 102.7],
+      ['Feb', 111.6, 103.4],
+      ['Mar', 107.4, 102.6],
+      ['Apr', 112.1, 103.9],
+      ['May', 114.8, 104.6],
+      ['Jun', 111.9, 104.0],
+      ['Jul', 113.7, 104.8],
+      ['Aug', 108.9, 104.1],
+    ]),
+    topHoldings: [
+      { name: 'Global Semiconductor Leaders', weight: 15.6, assetClass: 'Equities' },
+      { name: 'Asia Technology Fund', weight: 12.2, assetClass: 'Equities' },
+      { name: 'AI & Compute Thematic ETF', weight: 9.4, assetClass: 'Equities' },
+      { name: 'SGD Investment Grade Bonds', weight: 8.1, assetClass: 'Fixed income' },
+      { name: 'Growth Buyout Fund II', weight: 6.0, assetClass: 'Private markets' },
+    ],
+  },
   'cl-001': {
     performance: series([
       ['Sep', 100, 100],
