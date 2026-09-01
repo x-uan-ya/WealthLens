@@ -36,6 +36,69 @@ export const intelligenceSignals = [
     confidence: 0.9,
     createdAt: '2026-08-31',
     horizon: 'This week',
+
+    // --- Intelligence Detail content ---
+    // The four contributing factors behind the overall relevance score.
+    relevanceFactors: [
+      { label: 'Portfolio Exposure', score: 91, note: 'Semiconductor-related holdings at 27.8% of the portfolio.' },
+      { label: 'Market Impact', score: 82, note: 'Sector volatility elevated; correlated names moving together.' },
+      { label: 'Goal Sensitivity', score: 94, note: 'Directly touches an upcoming liquidity goal and risk tolerance.' },
+      { label: 'Urgency', score: 88, note: 'Liquidity required within four months; earnings ahead.' },
+    ],
+    whatChanged:
+      'Recent semiconductor-sector volatility has increased downside exposure across several correlated holdings.',
+    whyClient: [
+      '27.8% semiconductor-related portfolio exposure',
+      'Moderate risk tolerance',
+      'Upcoming S$300,000 liquidity requirement',
+      'Three correlated holdings contribute most of the exposure',
+    ],
+    whyItMatters:
+      'Any one of these factors alone would be routine. Together, a concentrated position in a volatile sector, a moderate risk tolerance, and a near-term cash need mean a sector pullback could force a poorly-timed sale precisely when liquidity is required. That combination makes this development far more relevant to Catherine than the market movement would suggest on its own.',
+    evidence: [
+      {
+        title: 'Portfolio Holdings',
+        summary: 'Three correlated semiconductor holdings drive most of the exposure.',
+        rows: [
+          { label: 'Global Semiconductor Leaders', value: '15.6%' },
+          { label: 'Asia Technology Fund (semi weight)', value: '7.8%' },
+          { label: 'AI & Compute Thematic ETF (semi weight)', value: '4.4%' },
+          { label: 'Total semiconductor-related exposure', value: '27.8%' },
+        ],
+      },
+      {
+        title: 'Client Risk Profile',
+        summary: 'Moderate tolerance, with a stated aim to reduce single-sector concentration.',
+        rows: [
+          { label: 'Risk profile', value: 'Moderate' },
+          { label: 'Concentration comfort (internal)', value: 'Up to ~20% per sector' },
+          { label: 'Current sector concentration', value: '27.8%' },
+          { label: 'Gap to comfort threshold', value: '+7.8 pts' },
+        ],
+      },
+      {
+        title: 'Client Goals',
+        summary: 'A near-term cash requirement sits alongside a long-term growth objective.',
+        rows: [
+          { label: 'Liquidity requirement', value: 'S$300,000' },
+          { label: 'Timeframe', value: 'Within 4 months' },
+          { label: 'Current cash position', value: 'S$2.1m (10%)' },
+          { label: 'Investment horizon', value: '7 years' },
+        ],
+      },
+      {
+        title: 'Market Development',
+        summary: 'Semiconductor volatility has risen ahead of a cluster of earnings dates.',
+        rows: [
+          { label: 'Sector 1-month move', value: '-6.4%' },
+          { label: 'Implied volatility change', value: '+38%' },
+          { label: 'Modelled portfolio impact', value: '-S$146,000' },
+          { label: 'Correlated holdings affected', value: '3' },
+        ],
+      },
+    ],
+    suggestedPreparation:
+      'Review technology concentration and prepare a discussion around diversification and near-term liquidity resilience.',
   },
   {
     id: 'sig-001',

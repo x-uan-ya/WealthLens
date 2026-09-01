@@ -8,6 +8,7 @@ import Overview from './pages/Overview.jsx'
 import Clients from './pages/Clients.jsx'
 import ClientDetail from './pages/ClientDetail.jsx'
 import Intelligence from './pages/Intelligence.jsx'
+import IntelligenceDetail from './pages/IntelligenceDetail.jsx'
 import Portfolios from './pages/Portfolios.jsx'
 import ScenarioLab from './pages/ScenarioLab.jsx'
 import Briefings from './pages/Briefings.jsx'
@@ -42,6 +43,7 @@ export default function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/clients/:id" element={<ClientDetail />} />
             <Route path="/intelligence" element={<Intelligence />} />
+            <Route path="/intelligence/:id" element={<IntelligenceDetail />} />
             <Route path="/portfolios" element={<Portfolios />} />
             <Route path="/scenario-lab" element={<ScenarioLab />} />
             <Route path="/briefings" element={<Briefings />} />

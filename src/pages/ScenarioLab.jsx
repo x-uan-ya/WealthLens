@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ResponsiveContainer,
   BarChart,
@@ -37,8 +38,9 @@ const PRESETS = [
 ]
 
 export default function ScenarioLab() {
+  const [searchParams] = useSearchParams()
   const [clients, setClients] = useState(null)
-  const [clientId, setClientId] = useState('all')
+  const [clientId, setClientId] = useState(searchParams.get('client') || 'all')
   const [equity, setEquity] = useState(-20)
   const [rate, setRate] = useState(0)
   const [fx, setFx] = useState(0)

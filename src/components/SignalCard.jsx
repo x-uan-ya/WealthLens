@@ -54,7 +54,9 @@ export default function SignalCard({ signal, variant = 'full' }) {
         </div>
 
         <h3 style={{ fontSize: 18, lineHeight: 1.3, marginTop: 2 }} className="serif">
-          {signal.headline}
+          <Link to={`/intelligence/${signal.id}`} className="signal-headline-link">
+            {signal.headline}
+          </Link>
         </h3>
 
         {/* Quantified relevance strip */}
@@ -104,7 +106,7 @@ export default function SignalCard({ signal, variant = 'full' }) {
         </div>
 
         <div className="signal-buttons">
-          <Link className="btn btn-primary btn-sm" to={`/clients/${signal.clientId}`}>
+          <Link className="btn btn-primary btn-sm" to={`/intelligence/${signal.id}`}>
             Review Intelligence
           </Link>
           <Link className="btn btn-sm" to="/briefings">

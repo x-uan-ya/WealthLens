@@ -45,6 +45,55 @@ export const getIntelligence = () => resolve(clone(intelligenceSignals))
 export const getIntelligenceForClient = (clientId) =>
   resolve(clone(intelligenceSignals.filter((s) => s.clientId === clientId)))
 
+// Returns a single signal, enriched with detail-view fields. Where a signal
+// has not been hand-authored with full detail (relevance factors, evidence,
+// etc.), sensible defaults are derived from the fields it does have, so the
+// Intelligence Detail page works for every signal.
+export const getIntelligenceById = (id) => {
+  const raw = intelligenceSignals.find((s) => s.id === id)
+  if (!raw) return resolve(null)
+  return resolve(clone(enrichSignal(raw)))
+}
+
+function enrichSignal(s) {
+  const relevanceFactors = s.relevanceFactors || deriveFactors(s)
+  return {
+    ...s,
+    relevanceFactors,
+    whatChanged: s.whatChanged || s.trigger,
+    whyClient: s.whyClient || s.signals || [],
+    whyItMatters: s.whyItMatters || s.why,
+    suggestedPreparation: s.suggestedPreparation || s.suggestedAction,
+    evidence: s.evidence || deriveEvidence(s),
+  }
+}
+
+// Approximate the four contributing factors from the headline metrics when a
+// signal has not been authored with an explicit breakdown.
+function deriveFactors(s) {
+  const base = s.relevanceScore ?? 60
+  const exposure = s.exposurePct != null ? Math.min(99, Math.round(s.exposurePct * 1.6 + 40)) : base
+  const urgencyByHorizon = { 'This week': 90, 'This month': 74, 'This quarter': 55 }
+  return [
+    { label: 'Portfolio Exposure', score: clamp(exposure), note: 'Estimated from the exposure this signal concerns.' },
+    { label: 'Market Impact', score: clamp(base - 6), note: 'Estimated market sensitivity for this development.' },
+    { label: 'Goal Sensitivity', score: clamp(base + 2), note: 'How closely this touches the client\u2019s stated goals.' },
+    { label: 'Urgency', score: clamp(urgencyByHorizon[s.horizon] ?? base), note: `Time sensitivity: ${s.horizon}.` },
+  ]
+}
+
+function deriveEvidence(s) {
+  return (s.signals || []).map((line, i) => ({
+    title: ['Portfolio Holdings', 'Client Risk Profile', 'Client Goals', 'Market Development'][i] || 'Supporting signal',
+    summary: line,
+    rows: [],
+  }))
+}
+
+function clamp(n) {
+  return Math.max(1, Math.min(99, Math.round(n)))
+}
+
 // --- Briefings ---
 export const getBriefings = () => resolve(clone(briefings))
 
