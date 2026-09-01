@@ -50,6 +50,20 @@ export const formatDateTime = (iso) => {
   })
 }
 
+// Human, relative phrasing for a past date, e.g. "2 days ago", "3 weeks ago".
+export const timeAgo = (iso) => {
+  if (!iso) return '—'
+  const days = daysSince(iso)
+  if (days == null) return '—'
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  if (days < 14) return '1 week ago'
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`
+  if (days < 60) return '1 month ago'
+  return `${Math.floor(days / 30)} months ago`
+}
+
 export const daysSince = (iso) => {
   if (!iso) return null
   const then = new Date(iso).getTime()

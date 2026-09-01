@@ -1071,6 +1071,61 @@ button {
   color: var(--ink-muted);
 }
 
+/* Client table filters */
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 32px;
+}
+.filter-group .filter-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 600;
+  margin-bottom: 9px;
+}
+
+.th-sort {
+  user-select: none;
+  transition: color 0.12s ease;
+}
+.th-sort:hover {
+  color: var(--ink);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.client-table td {
+  white-space: nowrap;
+}
+.client-table td.soft {
+  white-space: normal;
+}
+
+.relevance-track {
+  width: 46px;
+  height: 6px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+  display: inline-block;
+}
+.relevance-track span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+}
+
+@media (max-width: 640px) {
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .detail-head {
   display: flex;
   align-items: center;
