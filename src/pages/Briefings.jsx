@@ -1,14 +1,23 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarClock, CheckCircle2, FileText, ArrowRight, Sparkles } from 'lucide-react'
+import {
+  CalendarClock,
+  CheckCircle2,
+  FileText,
+  ArrowRight,
+  Sparkles,
+  Info,
+  BookOpen,
+  AlertCircle,
+} from 'lucide-react'
 import { PageHeader, Card, Badge, Loading } from '../components/ui.jsx'
 import { getBriefings, getIntelligence } from '../services/dataService.js'
 import { formatDateTime, initialsOf } from '../utils/format.js'
 
 export default function Briefings() {
   const [briefings, setBriefings] = useState(null)
-  const [signals, setSignals] = useState([])
-  const [activeId, setActiveId] = useState(null)
+  const [signals,   setSignals]   = useState([])
+  const [activeId,  setActiveId]  = useState(null)
 
   useEffect(() => {
     getBriefings().then((bs) => {
@@ -26,6 +35,10 @@ export default function Briefings() {
     ? signals.filter((s) => active.relatedSignals.includes(s.id))
     : []
 
+  // A briefing is "enhanced" when it carries the extended intelligence-brief
+  // fields added for Page 7. Older briefings fall back to the original layout.
+  const isEnhanced = !!(active?.situation)
+
   return (
     <div>
       <PageHeader
@@ -35,7 +48,8 @@ export default function Briefings() {
       />
 
       <div className="grid" style={{ gridTemplateColumns: '360px 1fr', alignItems: 'start' }}>
-        {/* List */}
+
+        {/* ── List (unchanged) ── */}
         <Card>
           <div className="card-head">
             <h3>Scheduled</h3>
@@ -77,13 +91,32 @@ export default function Briefings() {
           </div>
         </Card>
 
-        {/* Detail */}
+        {/* ── Detail ── */}
         {active && (
           <div className="grid" style={{ gap: 20 }}>
+
+            {/* Header card — identical for all briefings */}
             <Card className="card-pad">
               <div className="row between wrap" style={{ marginBottom: 6 }}>
                 <div className="eyebrow">{active.meetingType}</div>
-                <Badge tone={active.status === 'Ready' ? 'low' : 'medium'}>{active.status}</Badge>
+                <div className="row" style={{ gap: 8 }}>
+                  {isEnhanced && (
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: 'var(--gold)',
+                      background: 'var(--gold-tint)',
+                      border: '1px solid var(--gold-tint)',
+                      borderRadius: 30,
+                      padding: '2px 9px',
+                    }}>
+                      Intelligence brief
+                    </span>
+                  )}
+                  <Badge tone={active.status === 'Ready' ? 'low' : 'medium'}>{active.status}</Badge>
+                </div>
               </div>
               <h2 className="serif" style={{ fontSize: 22 }}>{active.clientName}</h2>
               <div className="muted" style={{ marginTop: 4 }}>
@@ -103,31 +136,39 @@ export default function Briefings() {
               </div>
             </Card>
 
-            <div className="grid cols-2" style={{ alignItems: 'start' }}>
-              <Card className="card-pad">
-                <div className="eyebrow row" style={{ gap: 8, marginBottom: 12 }}>
-                  <Sparkles size={14} color="var(--gold)" /> Talking points
+            {/* ── Enhanced layout — shown when new fields are present ── */}
+            {isEnhanced
+              ? <IntelligenceBrief briefing={active} />
+              : (
+                /* ── Legacy layout — original cols-2 grid for older briefings ── */
+                <div className="grid cols-2" style={{ alignItems: 'start' }}>
+                  <Card className="card-pad">
+                    <div className="eyebrow row" style={{ gap: 8, marginBottom: 12 }}>
+                      <Sparkles size={14} color="var(--gold)" /> Talking points
+                    </div>
+                    {active.talkingPoints.map((tp, i) => (
+                      <div className="talking-point" key={i}>
+                        <span className="n">{String(i + 1).padStart(2, '0')}</span>
+                        <span>{tp}</span>
+                      </div>
+                    ))}
+                  </Card>
+
+                  <Card className="card-pad">
+                    <div className="eyebrow" style={{ marginBottom: 12 }}>Prep checklist</div>
+                    <ul className="checklist">
+                      {active.prep.map((p, i) => (
+                        <li key={i}>
+                          <CheckCircle2 size={16} /> <span>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
                 </div>
-                {active.talkingPoints.map((tp, i) => (
-                  <div className="talking-point" key={i}>
-                    <span className="n">{String(i + 1).padStart(2, '0')}</span>
-                    <span>{tp}</span>
-                  </div>
-                ))}
-              </Card>
+              )
+            }
 
-              <Card className="card-pad">
-                <div className="eyebrow" style={{ marginBottom: 12 }}>Prep checklist</div>
-                <ul className="checklist">
-                  {active.prep.map((p, i) => (
-                    <li key={i}>
-                      <CheckCircle2 size={16} /> <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            </div>
-
+            {/* ── Related intelligence — shown for all briefings when present ── */}
             {relatedSignals.length > 0 && (
               <Card>
                 <div className="card-head"><h3>Intelligence behind this meeting</h3></div>
@@ -149,6 +190,111 @@ export default function Briefings() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// IntelligenceBrief — renders the enhanced brief sections for briefings that
+// carry the extended fields (situation, whyItMatters, keyEvidence, sources).
+// Each section is individually conditional so partial data never crashes.
+// ---------------------------------------------------------------------------
+function IntelligenceBrief({ briefing }) {
+  return (
+    <div className="grid" style={{ gap: 16 }}>
+
+      {/* Situation + Why It Matters — grouped as narrative prose */}
+      {(briefing.situation || briefing.whyItMatters) && (
+        <Card>
+          <div className="card-head">
+            <h3 style={{ fontSize: 15 }}>
+              <BookOpen size={15} strokeWidth={2} style={{ verticalAlign: -2, marginRight: 8, color: 'var(--gold)' }} />
+              Situation
+            </h3>
+          </div>
+          <div className="card-pad" style={{ paddingTop: 16 }}>
+            {briefing.situation && (
+              <p style={{ margin: '0 0 0', fontSize: 14.5, color: 'var(--ink)', fontWeight: 500, lineHeight: 1.5 }}>
+                {briefing.situation}
+              </p>
+            )}
+            {briefing.whyItMatters && (
+              <>
+                <div className="eyebrow" style={{ margin: '18px 0 8px' }}>Why it matters</div>
+                <p style={{ margin: 0, fontSize: 14, color: 'var(--ink-soft)', lineHeight: 1.65 }}>
+                  {briefing.whyItMatters}
+                </p>
+              </>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Key Evidence */}
+      {briefing.keyEvidence?.length > 0 && (
+        <Card className="card-pad">
+          <div className="eyebrow row" style={{ gap: 8, marginBottom: 14 }}>
+            <AlertCircle size={14} color="var(--gold)" /> Key evidence
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {briefing.keyEvidence.map((item, i) => (
+              <div key={i} className="kv" style={{ alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 13.5, color: 'var(--ink-soft)', flex: 1 }}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Talking Points + Prep — side by side on wider screens */}
+      <div className="grid cols-2" style={{ alignItems: 'start' }}>
+
+        {briefing.talkingPoints?.length > 0 && (
+          <Card className="card-pad">
+            <div className="eyebrow row" style={{ gap: 8, marginBottom: 12 }}>
+              <Sparkles size={14} color="var(--gold)" /> Suggested talking points
+            </div>
+            {briefing.talkingPoints.map((tp, i) => (
+              <div className="talking-point" key={i}>
+                <span className="n">{String(i + 1).padStart(2, '0')}</span>
+                <span>{tp}</span>
+              </div>
+            ))}
+          </Card>
+        )}
+
+        {briefing.prep?.length > 0 && (
+          <Card className="card-pad">
+            <div className="eyebrow" style={{ marginBottom: 12 }}>RM preparation</div>
+            <ul className="checklist">
+              {briefing.prep.map((p, i) => (
+                <li key={i}>
+                  <CheckCircle2 size={16} /> <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+      </div>
+
+      {/* Sources */}
+      {briefing.sources?.length > 0 && (
+        <Card className="card-pad">
+          <div className="eyebrow row" style={{ gap: 8, marginBottom: 12 }}>
+            <Info size={13} color="var(--ink-muted)" /> Sources
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {briefing.sources.map((src, i) => (
+              <span key={i} className="tag">{src}</span>
+            ))}
+          </div>
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--ink-muted)', lineHeight: 1.5 }}>
+            This briefing is a prototype RM preparation aid using mock data. It does not
+            constitute investment advice or a buy/sell recommendation. The RM determines
+            all client-facing actions.
+          </p>
+        </Card>
+      )}
     </div>
   )
 }
