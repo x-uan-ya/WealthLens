@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ResponsiveContainer,
   BarChart,
@@ -9,7 +10,7 @@ import {
   CartesianGrid,
   Cell,
 } from 'recharts'
-import { FlaskConical, TrendingDown, Info, ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import { FlaskConical, TrendingDown, Info, ArrowDownRight, ArrowUpRight, FileText } from 'lucide-react'
 import { PageHeader, Card, Loading } from '../components/ui.jsx'
 import { getClients, getPortfolio } from '../services/dataService.js'
 import { formatChf, formatPct } from '../utils/format.js'
@@ -255,6 +256,20 @@ export default function ScenarioLab() {
               client={scope[0]}
               result={singleResult}
             />
+          )}
+
+          {/* ── Generate RM Brief (single-client only) ── */}
+          {isSingleClient && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Link
+                to={`/briefings?client=${clientId}`}
+                className="btn btn-primary"
+                style={{ gap: 10 }}
+              >
+                <FileText size={15} />
+                Generate RM Brief
+              </Link>
+            </div>
           )}
 
           {/* ── Existing impact summary card (unchanged) ── */}

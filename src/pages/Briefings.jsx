@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   CalendarClock,
   CheckCircle2,
@@ -26,11 +26,19 @@ export default function Briefings() {
   const [copiedId,  setCopiedId]  = useState(null)
   const copyTimerRef = useRef(null)
 
+  const [searchParams] = useSearchParams()
+
   useEffect(() => {
     getBriefings().then((bs) => {
       const sorted = [...bs].sort((a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor))
       setBriefings(sorted)
-      setActiveId(sorted[0]?.id)
+      // If ?client=<id> is present, open that client's briefing automatically.
+      // Falls back to the first briefing if no match is found.
+      const clientParam = searchParams.get('client')
+      const matched = clientParam
+        ? sorted.find((b) => b.clientId === clientParam)
+        : null
+      setActiveId(matched?.id ?? sorted[0]?.id)
     })
     getIntelligence().then(setSignals)
   }, [])
