@@ -39,10 +39,17 @@ const SENSITIVITY_DEFAULT = { equity: 0.5, rate: -0.20, fx: -0.10 }
 
 const PRESETS = [
   { key: 'custom',       label: 'Custom' },
-  { key: 'equity',       label: 'Equity sell-off', equity: -20, rate:   0, fx:  0 },
-  { key: 'rates',        label: 'Rate spike',       equity:  -5, rate: 100, fx:  0 },
-  { key: 'usd',          label: 'USD weakness',     equity:   0, rate:   0, fx: -10 },
-  { key: 'stagflation',  label: 'Stagflation',      equity: -15, rate:  75, fx: -6 },
+  { key: 'equity',       label: 'Equity sell-off',      equity: -20, rate:   0, fx:   0 },
+  { key: 'rates',        label: 'Rate spike',            equity:  -5, rate: 100, fx:   0 },
+  { key: 'usd',          label: 'USD weakness',          equity:   0, rate:   0, fx: -10 },
+  { key: 'stagflation',  label: 'Stagflation',           equity: -15, rate:  75, fx:  -6 },
+  // Prototype sector stress test — Technology -10%.
+  // Expressed as an equity shock of -10% with a mild USD/CHF component (-5%)
+  // reflecting the USD-denominated nature of major tech holdings.
+  // The Technology sensitivity beta (1.4) amplifies the equity shock for
+  // tech-concentrated clients. This is a deterministic preparation estimate,
+  // not a market forecast.
+  { key: 'tech10',       label: 'Technology −10%',      equity: -10, rate:   0, fx:  -5 },
 ]
 
 // ---------------------------------------------------------------------------
@@ -55,6 +62,40 @@ function calcImpactPct(assetClassLabel, weightPct, equity, rate, fx) {
     s.rate   * (rate   / 100) +
     s.fx     * (fx     / 100)
   )
+}
+
+// ---------------------------------------------------------------------------
+// Technology-holding detector.
+// Returns true when a holding name indicates semiconductor / tech exposure.
+// Used only by the tech10 preset to apply a higher effective beta to tech
+// holdings vs. generic equity holdings (financials, healthcare, etc.).
+// Matching is done on holding name to avoid modifying portfolio data.
+// ---------------------------------------------------------------------------
+const TECH_HOLDING_PATTERN = /nvidia|tsmc|taiwan semi|apple|microsoft|alphabet|google|meta|amazon|samsung|intel|amd|qualcomm|broadcom|tech|semiconductor|chip/i
+
+// For the tech10 preset, technology-identified holdings receive an amplified
+// effective equity beta (1.4 — matching the Technology sector sensitivity),
+// while non-tech equity holdings receive a muted equity beta (0.15) because
+// a sector-specific shock transmits only weakly to unrelated sectors.
+const TECH10_HOLDING_SENSITIVITY = {
+  isTech:    { equity: 1.4,  rate: -0.08, fx: -0.20 },
+  isNotTech: { equity: 0.15, rate: -0.02, fx: -0.05 },
+}
+
+function calcHoldingImpactPct(holdingName, assetClassLabel, weightPct, equity, rate, fx, preset) {
+  // For the tech10 preset, override sensitivity based on tech-name detection.
+  if (preset === 'tech10' && assetClassLabel === 'Equities') {
+    const s = TECH_HOLDING_PATTERN.test(holdingName)
+      ? TECH10_HOLDING_SENSITIVITY.isTech
+      : TECH10_HOLDING_SENSITIVITY.isNotTech
+    return (weightPct / 100) * (
+      s.equity * (equity / 100) +
+      s.rate   * (rate   / 100) +
+      s.fx     * (fx     / 100)
+    )
+  }
+  // All other presets: standard asset-class sensitivity (unchanged).
+  return calcImpactPct(assetClassLabel, weightPct, equity, rate, fx)
 }
 
 export default function ScenarioLab() {
@@ -112,7 +153,7 @@ export default function ScenarioLab() {
     const client = scope[0]
     if (!client) return []
     return portfolio.topHoldings.map((h) => {
-      const pctImpact = calcImpactPct(h.assetClass, h.weight, equity, rate, fx)
+      const pctImpact = calcHoldingImpactPct(h.name, h.assetClass, h.weight, equity, rate, fx, preset)
       const holdingValue = client.aumChf * (h.weight / 100)
       const impactValue  = client.aumChf * pctImpact
       return {
@@ -124,7 +165,7 @@ export default function ScenarioLab() {
         holdingValue,
       }
     }).sort((a, b) => a.value - b.value) // most negative first
-  }, [portfolio, scope, clientId, equity, rate, fx])
+  }, [portfolio, scope, clientId, equity, rate, fx, preset])
 
   if (!clients) return <Loading label="Loading scenario model" />
 
@@ -224,7 +265,7 @@ export default function ScenarioLab() {
               </div>
               <div className="badge badge-neutral row" style={{ padding: '8px 12px' }}>
                 <TrendingDown size={15} style={{ marginRight: 4 }} />
-                {describeScenario(equity, rate, fx)}
+                {describeScenario(equity, rate, fx, preset)}
               </div>
             </div>
           </Card>
@@ -383,7 +424,9 @@ function Slider({ label, value, min, max, suffix, onChange }) {
   )
 }
 
-function describeScenario(equity, rate, fx) {
+function describeScenario(equity, rate, fx, preset) {
+  // Named tech scenario gets its own label so the badge is unambiguous.
+  if (preset === 'tech10') return 'Technology sector −10% (prototype)'
   const parts = []
   if (equity !== 0) parts.push(`Equities ${equity > 0 ? '+' : ''}${equity}%`)
   if (rate !== 0)   parts.push(`Rates ${rate > 0 ? '+' : ''}${rate}bps`)
