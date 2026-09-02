@@ -82,8 +82,8 @@ export default function SignalCard({ signal, variant = 'full' }) {
           <span className="muted" style={{ fontSize: 12 }}>
             Detected {formatDate(signal.createdAt)}
           </span>
-          <Link className="link-gold" to={`/clients/${signal.clientId}`}>
-            Open client <ArrowRight size={14} />
+          <Link className="link-gold" to={`/intelligence/${signal.id}`}>
+            Review intelligence <ArrowRight size={14} />
           </Link>
         </div>
       </div>
