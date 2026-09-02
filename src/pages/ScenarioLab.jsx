@@ -249,6 +249,14 @@ export default function ScenarioLab() {
             />
           )}
 
+          {/* ── Risk & Liquidity (single-client only) ── */}
+          {isSingleClient && singleResult && (
+            <RiskAndLiquidity
+              client={scope[0]}
+              result={singleResult}
+            />
+          )}
+
           {/* ── Existing impact summary card (unchanged) ── */}
           <Card className="card-pad">
             <div className="row between wrap">
@@ -401,6 +409,176 @@ function ClientScenarioSummary({ client, result, holdingResults }) {
       </div>
     </Card>
   )
+}
+
+// ---------------------------------------------------------------------------
+// RiskAndLiquidity — shown only in single-client mode.
+// Provides a prototype risk-threshold comparison and liquidity context
+// for RM preparation. Not a regulatory limit or investment recommendation.
+// ---------------------------------------------------------------------------
+
+// Prototype drawdown thresholds by risk profile.
+// These are RM preparation reference points, not regulatory mandates.
+const DRAWDOWN_THRESHOLD = {
+  Conservative: -3.0,
+  Balanced:     -5.0,
+  Growth:       -10.0,
+}
+const DRAWDOWN_THRESHOLD_DEFAULT = -7.0
+
+// Regex to detect a liquidity-related objective string.
+const LIQUIDITY_OBJ_PATTERN = /liquid|s\$|cash|requirement/i
+
+// A more specific liquidity objective contains a monetary value or time
+// reference (e.g. "S$300,000 within 4 months"). This pattern identifies those.
+const LIQUIDITY_SPECIFIC_PATTERN = /\d[\d,.]*(k|m|bn)?|\d+\s*(month|week|day|year)/i
+
+function RiskAndLiquidity({ client, result }) {
+  const threshold = DRAWDOWN_THRESHOLD[client.riskProfile] ?? DRAWDOWN_THRESHOLD_DEFAULT
+  const scenarioPct = result.pct          // already a percentage, e.g. -5.1
+  const exceeded    = scenarioPct < threshold
+
+  // Derive the most specific liquidity-related objective string.
+  // Prefer objectives that contain a monetary amount or time reference
+  // (e.g. "S$300,000 within 4 months") over generic ones ("Maintain liquidity").
+  // Fall back to the first generic match, then to a default label.
+  const allLiquidityObjs = client.objectives?.filter(
+    (o) => LIQUIDITY_OBJ_PATTERN.test(o)
+  ) ?? []
+  const liquidityObjective =
+    allLiquidityObjs.find((o) => LIQUIDITY_SPECIFIC_PATTERN.test(o)) ??
+    allLiquidityObjs[0] ??
+    null
+
+  // Scenario consideration: flag if the absolute portfolio loss is material
+  // relative to the available liquidity buffer (>20% of buffer).
+  const impactAbs         = Math.abs(result.value)
+  const liquidityBuffer   = client.liquidityChf ?? 0
+  const liquidityStrained = result.value < 0 && liquidityBuffer > 0 &&
+                            impactAbs > liquidityBuffer * 0.2
+
+  const considerationText = result.value >= 0
+    ? 'This scenario does not reduce portfolio value and poses no direct liquidity pressure.'
+    : liquidityStrained
+      ? `An estimated loss of ${formatChf(result.value)} under this scenario would reduce the available buffer and may warrant reviewing the timing of any upcoming liquidity requirement.`
+      : `The estimated loss of ${formatChf(result.value)} is within the current liquidity buffer. No immediate liquidity pressure is indicated, though the RM should monitor the position.`
+
+  return (
+    <Card>
+      <div className="card-head">
+        <h3 style={{ fontSize: 15 }}>Risk &amp; liquidity</h3>
+        <span className="muted" style={{ fontSize: 12.5 }}>{client.name}</span>
+      </div>
+      <div className="card-pad" style={{ paddingTop: 18 }}>
+
+        {/* ── Risk threshold ── */}
+        <div className="eyebrow" style={{ marginBottom: 12 }}>Prototype risk threshold</div>
+
+        <div className="grid cols-2" style={{ gap: 12, marginBottom: 16 }}>
+          <div style={metricTileStyle}>
+            <div style={metricLabelStyle}>Threshold ({client.riskProfile})</div>
+            <div style={{ ...metricValueStyle, color: 'var(--ink)' }}>
+              {formatPct(threshold, { sign: true })}
+            </div>
+          </div>
+          <div style={metricTileStyle}>
+            <div style={metricLabelStyle}>Scenario impact</div>
+            <div style={{ ...metricValueStyle, color: scenarioPct < 0 ? 'var(--danger)' : 'var(--ok)' }}>
+              {formatPct(scenarioPct, { sign: true })}
+            </div>
+          </div>
+        </div>
+
+        {/* Status badge */}
+        <div className="kv" style={{ marginBottom: 16 }}>
+          <span className="k">Status</span>
+          <span className="v">
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12.5,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              padding: '4px 10px',
+              borderRadius: 30,
+              background: exceeded ? 'var(--danger-tint)' : 'var(--ok-tint)',
+              color:      exceeded ? 'var(--danger)'      : 'var(--ok)',
+              border:     `1px solid ${exceeded ? 'var(--danger)' : 'var(--ok)'}`,
+            }}>
+              {exceeded ? '▲ Exceeded' : '✓ Within threshold'}
+            </span>
+          </span>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+          Prototype RM preparation threshold based on {client.riskProfile.toLowerCase()} mandate
+          guidelines. This is not a regulatory limit or investment recommendation.
+        </div>
+
+        <hr className="hr" style={{ margin: '0 0 16px' }} />
+
+        {/* ── Liquidity context ── */}
+        <div className="eyebrow" style={{ marginBottom: 12 }}>Liquidity context</div>
+
+        <div className="kv">
+          <span className="k">Liquidity requirement</span>
+          <span className="v" style={{ color: liquidityObjective ? 'var(--ink)' : 'var(--ink-muted)', fontWeight: liquidityObjective ? 500 : 400 }}>
+            {liquidityObjective ?? 'No near-term requirement recorded'}
+          </span>
+        </div>
+
+        <div className="kv">
+          <span className="k">Current liquidity buffer</span>
+          <span className="v">{formatChf(client.liquidityChf)}</span>
+        </div>
+
+        <div style={{
+          marginTop: 14,
+          padding: '12px 14px',
+          background: liquidityStrained ? 'var(--warn-tint)' : 'var(--surface-2)',
+          border: `1px solid ${liquidityStrained ? 'var(--warn)' : 'var(--line)'}`,
+          borderRadius: 'var(--radius-sm)',
+          fontSize: 13.5,
+          color: 'var(--ink-soft)',
+          lineHeight: 1.55,
+        }}>
+          <div className="eyebrow" style={{ marginBottom: 5 }}>Scenario consideration</div>
+          {considerationText}
+        </div>
+
+        <div className="row" style={{ gap: 8, fontSize: 12, color: 'var(--ink-muted)', marginTop: 14 }}>
+          <Info size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>
+            Liquidity context is a prototype RM preparation aid. It does not predict future
+            cash flows or guarantee the ability to meet obligations.
+          </span>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+const metricTileStyle = {
+  padding: '13px 15px',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
+  borderRadius: 'var(--radius-sm)',
+}
+const metricLabelStyle = {
+  fontSize: 11,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--ink-muted)',
+  fontWeight: 600,
+  marginBottom: 6,
+}
+const metricValueStyle = {
+  fontFamily: 'var(--font-serif)',
+  fontSize: 22,
+  fontWeight: 600,
+  letterSpacing: '-0.02em',
+  lineHeight: 1,
 }
 
 // ---------------------------------------------------------------------------
