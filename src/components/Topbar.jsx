@@ -1,4 +1,6 @@
-import { Search, Bell, Menu } from 'lucide-react'
+import { Search, Menu } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import Notifications from './Notifications.jsx'
 
 export default function Topbar({ rm, onMenu }) {
   return (
@@ -14,18 +16,15 @@ export default function Topbar({ rm, onMenu }) {
       </div>
 
       <div className="topbar-actions">
-        <button className="icon-btn" aria-label="Notifications">
-          <Bell size={19} strokeWidth={1.9} />
-          <span className="dot" />
-        </button>
+        <Notifications />
 
-        <div className="rm-chip">
+        <Link to="/settings" className="rm-chip" aria-label="Relationship Manager profile and settings">
           <div className="avatar">{rm?.initials}</div>
           <div className="rm-meta">
             <div className="rm-name">{rm?.name}</div>
             <div className="rm-role">{rm?.title}</div>
           </div>
-        </div>
+        </Link>
       </div>
     </header>
   )

@@ -6,6 +6,7 @@ import {
   PieChart,
   FlaskConical,
   FileText,
+  Settings,
 } from 'lucide-react'
 import { formatChf } from '../utils/format.js'
 
@@ -20,6 +21,8 @@ const workNav = [
   { to: '/scenario-lab', label: 'Scenario Lab', icon: FlaskConical },
   { to: '/briefings', label: 'Briefings', icon: FileText },
 ]
+
+const systemNav = [{ to: '/settings', label: 'Settings', icon: Settings }]
 
 export default function Sidebar({ rm, open, onNavigate }) {
   const renderItem = ({ to, label, icon: Icon, end }) => (
@@ -55,6 +58,8 @@ export default function Sidebar({ rm, open, onNavigate }) {
         {primaryNav.map(renderItem)}
         <div className="nav-label">Prepare</div>
         {workNav.map(renderItem)}
+        <div className="nav-label">System</div>
+        {systemNav.map(renderItem)}
       </nav>
 
       <div className="sidebar-foot">

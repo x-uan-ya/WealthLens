@@ -12,6 +12,7 @@ import IntelligenceDetail from './pages/IntelligenceDetail.jsx'
 import Portfolios from './pages/Portfolios.jsx'
 import ScenarioLab from './pages/ScenarioLab.jsx'
 import Briefings from './pages/Briefings.jsx'
+import Settings from './pages/Settings.jsx'
 import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/portfolios" element={<Portfolios />} />
             <Route path="/scenario-lab" element={<ScenarioLab />} />
             <Route path="/briefings" element={<Briefings />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

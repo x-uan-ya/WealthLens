@@ -12,6 +12,8 @@ import { portfolios } from '../data/portfolios.js'
 import { intelligenceSignals } from '../data/intelligence.js'
 import { briefings } from '../data/briefings.js'
 import { marketSnapshot, marketNarratives } from '../data/market.js'
+import { notifications as seedNotifications } from '../data/notifications.js'
+import { preferenceSchema, defaultPreferences } from '../data/preferences.js'
 
 // Simulate latency so loading states are realistic. Set to 0 to disable.
 const LATENCY_MS = 0
@@ -103,3 +105,60 @@ export const getBriefingById = (id) =>
 // --- Market ---
 export const getMarketSnapshot = () => resolve(clone(marketSnapshot))
 export const getMarketNarratives = () => resolve(clone(marketNarratives))
+
+// --- Notifications ---
+// Generic, mock notifications. Read-state is held in a module-level copy so the
+// UI can update without a backend. Replace with GET/PATCH /api/notifications.
+let notificationState = clone(seedNotifications)
+
+export const getNotifications = () => resolve(clone(notificationState))
+
+export const markNotificationRead = (id) => {
+  notificationState = notificationState.map((n) =>
+    n.id === id ? { ...n, read: true } : n
+  )
+  return resolve(clone(notificationState))
+}
+
+export const markAllNotificationsRead = () => {
+  notificationState = notificationState.map((n) => ({ ...n, read: true }))
+  return resolve(clone(notificationState))
+}
+
+// --- Preferences (settings) ---
+// The schema describes what to render; values hold the current selections.
+// Values persist to localStorage so the demo feels real; swap this for
+// GET/PUT /api/preferences without touching the UI.
+const PREFS_KEY = 'wealthlens.preferences'
+
+const loadPreferences = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null')
+    return { ...defaultPreferences, ...(stored || {}) }
+  } catch {
+    return { ...defaultPreferences }
+  }
+}
+
+export const getPreferenceSchema = () => resolve(clone(preferenceSchema))
+
+export const getPreferences = () => resolve(loadPreferences())
+
+export const savePreferences = (values) => {
+  const merged = { ...loadPreferences(), ...values }
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(merged))
+  } catch {
+    // Non-fatal in the prototype: fall back to in-memory only.
+  }
+  return resolve(clone(merged))
+}
+
+export const resetPreferences = () => {
+  try {
+    localStorage.removeItem(PREFS_KEY)
+  } catch {
+    /* ignore */
+  }
+  return resolve({ ...defaultPreferences })
+}
