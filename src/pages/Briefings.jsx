@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarClock,
@@ -9,6 +9,8 @@ import {
   Info,
   BookOpen,
   AlertCircle,
+  Copy,
+  CheckCheck,
 } from 'lucide-react'
 import { PageHeader, Card, Badge, Loading } from '../components/ui.jsx'
 import { getBriefings, getIntelligence } from '../services/dataService.js'
@@ -18,6 +20,11 @@ export default function Briefings() {
   const [briefings, setBriefings] = useState(null)
   const [signals,   setSignals]   = useState([])
   const [activeId,  setActiveId]  = useState(null)
+  // Local-only status overrides — "Mark Ready" toggles without touching data files.
+  const [readyIds,  setReadyIds]  = useState(new Set())
+  // Tracks which briefing currently shows "Copied" feedback.
+  const [copiedId,  setCopiedId]  = useState(null)
+  const copyTimerRef = useRef(null)
 
   useEffect(() => {
     getBriefings().then((bs) => {
@@ -39,8 +46,36 @@ export default function Briefings() {
   // fields added for Page 7. Older briefings fall back to the original layout.
   const isEnhanced = !!(active?.situation)
 
+  // Derive effective status — local override wins over data-file value.
+  const effectiveStatus = (b) =>
+    readyIds.has(b.id) ? 'Ready' : b.status
+
+  // ── Action handlers ───────────────────────────────────────────────────────
+
+  const handleMarkReady = () => {
+    if (!active) return
+    setReadyIds((prev) => new Set([...prev, active.id]))
+  }
+
+  const handleExport = () => {
+    window.print()
+  }
+
+  const handleCopy = () => {
+    if (!active) return
+    const text = buildBriefText(active)
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(active.id)
+      clearTimeout(copyTimerRef.current)
+      copyTimerRef.current = setTimeout(() => setCopiedId(null), 2000)
+    })
+  }
+
   return (
     <div>
+      {/* ── Print-only styles ── injected only while Briefings page is mounted ── */}
+      <style>{PRINT_CSS}</style>
+
       <PageHeader
         eyebrow="Briefings"
         title="Walk in prepared"
@@ -50,7 +85,7 @@ export default function Briefings() {
       <div className="grid" style={{ gridTemplateColumns: '360px 1fr', alignItems: 'start' }}>
 
         {/* ── List (unchanged) ── */}
-        <Card>
+        <Card data-print="hide">
           <div className="card-head">
             <h3>Scheduled</h3>
             <span className="muted" style={{ fontSize: 12.5 }}>{briefings.length} meetings</span>
@@ -80,7 +115,7 @@ export default function Briefings() {
                       <span className="muted" style={{ fontSize: 12 }}>{b.meetingType}</span>
                     </span>
                   </span>
-                  <Badge tone={b.status === 'Ready' ? 'low' : 'medium'}>{b.status}</Badge>
+                  <Badge tone={effectiveStatus(b) === 'Ready' ? 'low' : 'medium'}>{effectiveStatus(b)}</Badge>
                 </div>
                 <div className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
                   <CalendarClock size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
@@ -93,7 +128,7 @@ export default function Briefings() {
 
         {/* ── Detail ── */}
         {active && (
-          <div className="grid" style={{ gap: 20 }}>
+          <div className="grid" style={{ gap: 20 }} data-print="detail">
 
             {/* Header card — identical for all briefings */}
             <Card className="card-pad">
@@ -115,7 +150,7 @@ export default function Briefings() {
                       Intelligence brief
                     </span>
                   )}
-                  <Badge tone={active.status === 'Ready' ? 'low' : 'medium'}>{active.status}</Badge>
+                  <Badge tone={effectiveStatus(active) === 'Ready' ? 'low' : 'medium'}>{effectiveStatus(active)}</Badge>
                 </div>
               </div>
               <h2 className="serif" style={{ fontSize: 22 }}>{active.clientName}</h2>
@@ -126,13 +161,28 @@ export default function Briefings() {
               <p className="soft" style={{ marginTop: 14, marginBottom: 0, fontSize: 14.5, lineHeight: 1.6 }}>
                 {active.summary}
               </p>
-              <div className="row" style={{ gap: 10, marginTop: 18 }}>
+              <div className="row wrap" style={{ gap: 10, marginTop: 18 }} data-print="hide">
                 <Link to={`/clients/${active.clientId}`} className="btn btn-primary">
                   Open client <ArrowRight size={15} />
                 </Link>
-                <button className="btn">
+                <button className="btn" onClick={handleExport}>
                   <FileText size={15} /> Export briefing
                 </button>
+                <button className="btn" onClick={handleCopy}>
+                  {copiedId === active.id
+                    ? <><CheckCheck size={15} /> Copied</>
+                    : <><Copy size={15} /> Copy brief</>
+                  }
+                </button>
+                {effectiveStatus(active) === 'Ready' ? (
+                  <span className="btn" style={{ color: 'var(--ok)', borderColor: 'var(--ok)', cursor: 'default', opacity: 0.75 }}>
+                    <CheckCheck size={15} /> Ready for discussion
+                  </span>
+                ) : (
+                  <button className="btn" onClick={handleMarkReady}>
+                    <CheckCircle2 size={15} /> Mark ready for client discussion
+                  </button>
+                )}
               </div>
             </Card>
 
@@ -195,6 +245,172 @@ export default function Briefings() {
 }
 
 // ---------------------------------------------------------------------------
+// PRINT_CSS — injected as a <style> element while the Briefings page is
+// mounted. Scoped entirely to @media print so the on-screen UI is unaffected.
+// ---------------------------------------------------------------------------
+const PRINT_CSS = `
+@media print {
+  /* ── Hide application chrome ── */
+  .sidebar,
+  .topbar,
+  .page-head,
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  /* ── Reset shell layout so the detail fills the page ── */
+  body, #root {
+    background: #fff !important;
+  }
+
+  .app {
+    display: block !important;
+  }
+
+  .main {
+    display: block !important;
+  }
+
+  .content {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* ── Centre the briefing detail column ── */
+  [data-print="detail"] {
+    display: block !important;
+    width: 100% !important;
+    max-width: 820px !important;
+    margin: 0 auto !important;
+    padding: 24pt 0 !important;
+    gap: 0 !important;
+  }
+
+  /* The grid wrapper holding list + detail */
+  .grid[style] {
+    display: block !important;
+  }
+
+  /* ── Card print treatment ── */
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #d8d3c8 !important;
+    border-radius: 0 !important;
+    margin-bottom: 14pt !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* ── Single-column for talking points + prep grid ── */
+  [data-print="single-col"] {
+    display: block !important;
+  }
+
+  [data-print="single-col"] > * {
+    margin-bottom: 14pt !important;
+  }
+
+  /* ── Typography ── */
+  body {
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    color: #16232b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  h1, h2, h3, h4 {
+    color: #16232b !important;
+  }
+
+  .serif {
+    font-family: Georgia, "Times New Roman", serif !important;
+  }
+
+  .eyebrow {
+    font-size: 8pt !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  /* ── Talking points and checklist spacing ── */
+  .talking-point {
+    padding: 5pt 0 !important;
+    font-size: 11pt !important;
+  }
+
+  .checklist li {
+    padding: 4pt 0 !important;
+    font-size: 11pt !important;
+  }
+
+  /* ── Badges: keep colour but remove heavy backgrounds ── */
+  .badge {
+    border: 1px solid currentColor !important;
+    background: transparent !important;
+    font-size: 8pt !important;
+  }
+
+  /* ── Tags (sources) ── */
+  .tag {
+    border: 1px solid #d8d3c8 !important;
+    font-size: 9pt !important;
+  }
+
+  /* ── Links: no underline, keep text colour ── */
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
+}
+`
+
+// ---------------------------------------------------------------------------
+// buildBriefText — assembles a plain-text copy of the active briefing.
+// Works for both legacy and enhanced briefings; skips missing sections.
+// ---------------------------------------------------------------------------
+function buildBriefText(b) {
+  const lines = []
+  const section = (heading, body) => {
+    lines.push(`\n${'─'.repeat(48)}\n${heading.toUpperCase()}\n${'─'.repeat(48)}`)
+    lines.push(body)
+  }
+
+  lines.push(`CLIENT INTELLIGENCE BRIEF`)
+  lines.push(`${b.clientName}  ·  ${b.meetingType}`)
+  lines.push(`Status: ${b.status}`)
+
+  if (b.situation)    section('Situation',      b.situation)
+  if (b.whyItMatters) section('Why it matters', b.whyItMatters)
+
+  if (b.keyEvidence?.length) {
+    section('Key evidence', b.keyEvidence.map((e) => `  • ${e}`).join('\n'))
+  }
+
+  if (b.talkingPoints?.length) {
+    section('Suggested talking points',
+      b.talkingPoints.map((tp, i) => `  ${String(i + 1).padStart(2, '0')}  ${tp}`).join('\n'))
+  }
+
+  if (!b.situation && b.summary) {
+    section('Summary', b.summary)
+  }
+
+  if (b.prep?.length) {
+    section('RM preparation',
+      b.prep.map((p) => `  ☐  ${p}`).join('\n'))
+  }
+
+  if (b.sources?.length) {
+    section('Sources', b.sources.map((s) => `  • ${s}`).join('\n'))
+  }
+
+  lines.push('\n' + '─'.repeat(48))
+  lines.push('This is a prototype RM preparation aid. It does not constitute investment advice.')
+
+  return lines.join('\n')
+}
+
+// ---------------------------------------------------------------------------
 // IntelligenceBrief — renders the enhanced brief sections for briefings that
 // carry the extended fields (situation, whyItMatters, keyEvidence, sources).
 // Each section is individually conditional so partial data never crashes.
@@ -247,7 +463,7 @@ function IntelligenceBrief({ briefing }) {
       )}
 
       {/* Talking Points + Prep — side by side on wider screens */}
-      <div className="grid cols-2" style={{ alignItems: 'start' }}>
+      <div className="grid cols-2" style={{ alignItems: 'start' }} data-print="single-col">
 
         {briefing.talkingPoints?.length > 0 && (
           <Card className="card-pad">
