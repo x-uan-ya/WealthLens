@@ -144,6 +144,33 @@ export const portfolios = {
       { name: 'Cash Reserve Account', weight: 7.0, assetClass: 'Cash' },
     ],
   },
+  'C041': {
+    performance: series([
+      ['Sep', 100,   100  ],
+      ['Oct', 101.4, 100.7],
+      ['Nov', 103.2, 101.5],
+      ['Dec', 102.1, 101.1],
+      ['Jan', 104.6, 102.3],
+      ['Feb', 106.8, 103.0],
+      ['Mar', 105.3, 102.5],
+      ['Apr', 107.9, 103.6],
+      ['May', 106.2, 104.0],
+      ['Jun', 107.5, 104.4],
+      ['Jul', 105.8, 104.8],
+      ['Aug', 106.8, 105.1],
+    ]),
+    topHoldings: [
+      { name: 'NVIDIA Corporation',            weight: 12.4, assetClass: 'Equities' },
+      { name: 'TSMC ADR',                       weight:  9.6, assetClass: 'Equities' },
+      { name: 'Apple Inc.',                     weight:  5.8, assetClass: 'Equities' },
+      { name: 'Asia Financials Select Fund',    weight:  9.2, assetClass: 'Equities' },
+      { name: 'Global Healthcare Leaders ETF',  weight:  8.1, assetClass: 'Equities' },
+      { name: 'SGD Short-Duration Bond Fund',   weight:  7.4, assetClass: 'Fixed income' },
+      { name: 'USD Investment Grade Bonds',     weight:  5.9, assetClass: 'Fixed income' },
+      { name: 'Cash & Money Market (SGD)',      weight:  6.0, assetClass: 'Cash' },
+      { name: 'Asia Credit Opportunities Fund', weight:  4.8, assetClass: 'Alternatives' },
+    ],
+  },
   'cl-006': {
     performance: series([
       ['Sep', 100, 100],
