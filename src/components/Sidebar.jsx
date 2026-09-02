@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -40,7 +40,7 @@ export default function Sidebar({ rm, open, onNavigate }) {
 
   return (
     <aside className={`sidebar${open ? ' open' : ''}`}>
-      <div className="brand">
+      <Link to="/" className="brand" onClick={onNavigate} aria-label="WealthLens home">
         <div className="brand-mark">
           <svg width="20" height="20" viewBox="0 0 32 32">
             <circle cx="16" cy="16" r="8" fill="none" stroke="#c8a24a" strokeWidth="2" />
@@ -51,7 +51,7 @@ export default function Sidebar({ rm, open, onNavigate }) {
           <div className="brand-name">WealthLens</div>
           <div className="brand-sub">Private Intelligence</div>
         </div>
-      </div>
+      </Link>
 
       <nav className="nav">
         <div className="nav-label">Manage</div>
