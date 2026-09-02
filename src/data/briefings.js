@@ -90,4 +90,63 @@ export const briefings = [
       'Show an income uplift illustration',
     ],
   },
+
+  // ── br-005: Catherine Tan ───────────────────────────────────────────────
+  // Prototype RM briefing. All content is mock data for demonstration purposes.
+  // This is a preparation aid for the Relationship Manager; it does not
+  // constitute investment advice or a buy/sell recommendation.
+  {
+    id: 'br-005',
+    clientId: 'C041',
+    clientName: 'Catherine Tan',
+    meetingType: 'Portfolio review discussion',
+    scheduledFor: '2026-09-10T11:00:00',
+    status: 'Drafting',
+
+    // summary is used by the existing Briefings UI (list and detail header).
+    // Keep it aligned with situation so the page renders correctly today.
+    summary:
+      'Review technology-sector concentration in the context of recent market volatility and an upcoming liquidity requirement. The RM should determine whether the current positioning remains aligned with Catherine\'s stated objectives.',
+
+    // ── Extended fields for the enhanced briefing view (Page 7) ────────────
+
+    situation:
+      'Recent technology-sector volatility intersects with Catherine Tan\'s concentrated technology exposure.',
+
+    whyItMatters:
+      'Catherine holds 27.8% of her portfolio in technology-related positions, with NVIDIA, TSMC and Apple as the three largest individual holdings. Her mandate is Advisory with a Balanced (Moderate) risk profile, which implies a meaningful but bounded tolerance for drawdown. Separately, she has a stated S$300,000 liquidity requirement due within four months. The combination of elevated sector concentration, a Balanced risk profile and a near-term liquidity commitment means that a sustained technology-sector correction could simultaneously reduce portfolio value and constrain the flexibility to meet that requirement. The RM is best placed to assess whether the current positioning remains appropriate given these factors.',
+
+    keyEvidence: [
+      'Technology exposure: 27.8% of portfolio',
+      'Risk profile: Balanced (Moderate)',
+      'Liquidity requirement: S$300,000 within 4 months',
+      'Technology −10% prototype scenario impact: approximately CHF −215,000 (−5.1%)',
+      'Most affected holdings under scenario: NVIDIA Corporation, TSMC ADR, Apple Inc.',
+      'Current liquidity buffer: CHF 420,000',
+      'Prototype risk threshold for Balanced mandate: −5.0% (scenario impact exceeds threshold)',
+    ],
+
+    talkingPoints: [
+      'Review the current technology-sector concentration and whether it remains within the agreed risk parameters for a Balanced mandate',
+      'Discuss the portfolio\'s resilience against further technology-sector volatility, referencing the scenario analysis as a preparation tool',
+      'Consider the implications of the near-term S$300,000 liquidity requirement alongside the current cash buffer of CHF 420,000',
+      'Confirm whether the existing positioning remains aligned with Catherine\'s stated objectives of preserving long-term wealth and maintaining sufficient liquidity',
+    ],
+
+    sources: [
+      'Portfolio Holdings (WealthLens mock data)',
+      'Client Profile — Catherine Tan (C041)',
+      'Scenario Analysis — Technology −10% prototype stress test',
+      'Market Intelligence — sig-008',
+    ],
+
+    relatedSignals: ['sig-008'],
+
+    prep: [
+      'Review Catherine\'s current technology-holding weights against the Balanced mandate guidelines',
+      'Run the Technology −10% scenario in Scenario Lab and note the most affected holdings',
+      'Confirm the current liquidity position against the S$300,000 requirement timeline',
+      'Prepare two or three discussion options rather than recommendations — the decision rests with the client',
+    ],
+  },
 ]
