@@ -45,6 +45,9 @@ export const getIntelligence = () => resolve(clone(intelligenceSignals))
 export const getIntelligenceForClient = (clientId) =>
   resolve(clone(intelligenceSignals.filter((s) => s.clientId === clientId)))
 
+export const getSignalById = (id) =>
+  resolve(clone(intelligenceSignals.find((s) => s.id === id) || null))
+
 // --- Briefings ---
 export const getBriefings = () => resolve(clone(briefings))
 
