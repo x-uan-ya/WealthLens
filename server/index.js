@@ -30,6 +30,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import { pathToFileURL } from 'url'
 
 // Engine imports
 import { loadAllData, validateData } from './engine/dataLoader.js'
@@ -321,30 +322,51 @@ app.use((err, req, res, _next) => {
 
 // ─── Start ─────────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`WealthLens API running on http://localhost:${PORT}`)
-  console.log(`Data validation:`)
+// The Express app is exported so it can run in two ways:
+//   1. Local development / standalone: `node server/index.js` calls app.listen.
+//   2. Vercel serverless: api/index.js imports this app and hands it to the
+//      serverless runtime (no app.listen — Vercel manages the HTTP lifecycle).
+//
+// We only bind a port when this file is the process entry point, detected by
+// comparing the resolved module URL to the invoked script path.
+function startLocalServer() {
+  app.listen(PORT, () => {
+    console.log(`WealthLens API running on http://localhost:${PORT}`)
+    console.log(`Data validation:`)
 
-  try {
-    const store = loadAllData()
-    const validation = validateData(store)
-    console.log(`  Clients: ${validation.summary.clients}`)
-    console.log(`  Portfolios: ${validation.summary.portfolios}`)
-    console.log(`  Holdings: ${validation.summary.holdings}`)
-    console.log(`  Snapshot holdings: ${validation.summary.holdingsSnapshots}`)
-    console.log(`  Instruments: ${validation.summary.instruments}`)
-    console.log(`  Credit facilities: ${validation.summary.creditFacilities}`)
-    console.log(`  Planned cash needs: ${validation.summary.plannedCashNeeds}`)
-    console.log(`  Event log entries: ${validation.summary.eventLogEntries}`)
-    console.log(`  RM notes: ${validation.summary.rmNotes}`)
-    console.log(`  Valid: ${validation.valid}`)
-    if (validation.errors.length > 0) {
-      console.warn(`  Errors: ${validation.errors.join('; ')}`)
+    try {
+      const store = loadAllData()
+      const validation = validateData(store)
+      console.log(`  Clients: ${validation.summary.clients}`)
+      console.log(`  Portfolios: ${validation.summary.portfolios}`)
+      console.log(`  Holdings: ${validation.summary.holdings}`)
+      console.log(`  Snapshot holdings: ${validation.summary.holdingsSnapshots}`)
+      console.log(`  Instruments: ${validation.summary.instruments}`)
+      console.log(`  Credit facilities: ${validation.summary.creditFacilities}`)
+      console.log(`  Planned cash needs: ${validation.summary.plannedCashNeeds}`)
+      console.log(`  Event log entries: ${validation.summary.eventLogEntries}`)
+      console.log(`  RM notes: ${validation.summary.rmNotes}`)
+      console.log(`  Valid: ${validation.valid}`)
+      if (validation.errors.length > 0) {
+        console.warn(`  Errors: ${validation.errors.join('; ')}`)
+      }
+      if (validation.warnings.length > 0) {
+        console.warn(`  Warnings (${validation.warnings.length}): ${validation.warnings.slice(0, 3).join('; ')}${validation.warnings.length > 3 ? '...' : ''}`)
+      }
+    } catch (e) {
+      console.error('  Failed to load data:', e.message)
     }
-    if (validation.warnings.length > 0) {
-      console.warn(`  Warnings (${validation.warnings.length}): ${validation.warnings.slice(0, 3).join('; ')}${validation.warnings.length > 3 ? '...' : ''}`)
-    }
-  } catch (e) {
-    console.error('  Failed to load data:', e.message)
-  }
-})
+  })
+}
+
+// Detect "run directly" in an ESM context. On Vercel the app is imported, so
+// this is false and no port is bound.
+const isDirectRun =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+
+if (isDirectRun) {
+  startLocalServer()
+}
+
+// Default export for the Vercel serverless entry (api/index.js).
+export default app
