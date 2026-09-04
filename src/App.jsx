@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation, useMatch } from 'react-router-dom'
 import Sidebar from './components/Sidebar.jsx'
 import Topbar from './components/Topbar.jsx'
 import { getRelationshipManager } from './services/dataService.js'
@@ -20,6 +20,11 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
 
+  // Detect the client-view route so the RM shell (sidebar + topbar) is
+  // excluded for that path. All other routes continue to render inside
+  // the full RM shell unchanged.
+  const isClientView = useMatch('/client-view/*')
+
   useEffect(() => {
     getRelationshipManager().then(setRm)
   }, [])
@@ -29,6 +34,16 @@ export default function App() {
     setMenuOpen(false)
   }, [location.pathname])
 
+  // ── Client-facing route — no RM shell ──────────────────────────────────
+  if (isClientView) {
+    return (
+      <Routes>
+        <Route path="/client-view/:id" element={<ClientView />} />
+      </Routes>
+    )
+  }
+
+  // ── RM shell — all existing routes unchanged ───────────────────────────
   return (
     <div className="app">
       <Sidebar rm={rm} open={menuOpen} onNavigate={() => setMenuOpen(false)} />
