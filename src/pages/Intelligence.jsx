@@ -1,44 +1,52 @@
 import { useEffect, useMemo, useState } from 'react'
-import { SlidersHorizontal } from 'lucide-react'
-import { PageHeader, Card, Loading } from '../components/ui.jsx'
-import SignalCard from '../components/SignalCard.jsx'
-import { getIntelligence } from '../services/dataService.js'
+import { Link } from 'react-router-dom'
+import { SlidersHorizontal, ArrowRight, ShieldAlert } from 'lucide-react'
+import { PageHeader, Card, Badge, Loading } from '../components/ui.jsx'
+import { getOfficialClients, getClientIntelligence } from '../services/dataService.js'
+import { initialsOf } from '../utils/format.js'
 
 const PRIORITIES = [
   { key: 'all', label: 'All' },
-  { key: 'high', label: 'High priority' },
-  { key: 'medium', label: 'Monitor' },
-  { key: 'low', label: 'Opportunities' },
+  { key: 'HIGH', label: 'High priority' },
+  { key: 'MEDIUM', label: 'Monitor' },
+  { key: 'LOW', label: 'Opportunities' },
 ]
 
+const priorityTone = { HIGH: 'high', MEDIUM: 'medium', LOW: 'low', NONE: 'neutral' }
+const rank = (p) => ({ HIGH: 0, MEDIUM: 1, LOW: 2, NONE: 3 })[p] ?? 4
+
 export default function Intelligence() {
-  const [signals, setSignals] = useState(null)
+  const [items, setItems] = useState(null)
   const [priority, setPriority] = useState('all')
-  const [category, setCategory] = useState('all')
 
   useEffect(() => {
-    getIntelligence().then(setSignals)
+    // Build the feed from clients that currently have intelligence objects.
+    getOfficialClients().then((clients) => {
+      Promise.all(
+        clients.map((c) =>
+          getClientIntelligence(c.id).then((intel) => (intel ? { client: c, intel } : null))
+        )
+      ).then((results) => setItems(results.filter(Boolean)))
+    })
   }, [])
 
-  const categories = useMemo(() => {
-    if (!signals) return []
-    return ['all', ...Array.from(new Set(signals.map((s) => s.category)))]
-  }, [signals])
-
   const filtered = useMemo(() => {
-    if (!signals) return []
-    return signals
-      .filter((s) => (priority === 'all' ? true : s.priority === priority))
-      .filter((s) => (category === 'all' ? true : s.category === category))
-      .sort((a, b) => rank(a.priority) - rank(b.priority))
-  }, [signals, priority, category])
+    if (!items) return []
+    return items
+      .filter((it) => (priority === 'all' ? true : it.intel.priority === priority))
+      .sort((a, b) => {
+        const r = rank(a.intel.priority) - rank(b.intel.priority)
+        if (r !== 0) return r
+        return (b.intel.relevanceScore ?? 0) - (a.intel.relevanceScore ?? 0)
+      })
+  }, [items, priority])
 
-  if (!signals) return <Loading label="Reading signals" />
+  if (!items) return <Loading label="Reading intelligence" />
 
   const counts = {
-    high: signals.filter((s) => s.priority === 'high').length,
-    medium: signals.filter((s) => s.priority === 'medium').length,
-    low: signals.filter((s) => s.priority === 'low').length,
+    HIGH: items.filter((it) => it.intel.priority === 'HIGH').length,
+    MEDIUM: items.filter((it) => it.intel.priority === 'MEDIUM').length,
+    LOW: items.filter((it) => it.intel.priority === 'LOW').length,
   }
 
   return (
@@ -46,52 +54,76 @@ export default function Intelligence() {
       <PageHeader
         eyebrow="Intelligence"
         title="What matters, to whom, and why"
-        subtitle="Every signal is tied to a specific client and a stated objective. This is judgement about relevance, not a feed of raw alerts."
+        subtitle="Every item is tied to a specific client and grounded in verified data. This is judgement about relevance, not a feed of raw alerts."
       />
 
       <div className="grid cols-3" style={{ marginBottom: 24 }}>
-        <SummaryTile tone="high" label="Need a decision now" value={counts.high} note="Time-sensitive client situations" />
-        <SummaryTile tone="medium" label="Worth monitoring" value={counts.medium} note="Developing but not urgent" />
-        <SummaryTile tone="low" label="Opportunities" value={counts.low} note="Ways to add value proactively" />
+        <SummaryTile tone="high" label="Need a decision now" value={counts.HIGH} note="Time-sensitive client situations" />
+        <SummaryTile tone="medium" label="Worth monitoring" value={counts.MEDIUM} note="Developing but not urgent" />
+        <SummaryTile tone="low" label="Opportunities" value={counts.LOW} note="Ways to add value proactively" />
       </div>
 
       <Card className="card-pad" style={{ marginBottom: 24 }}>
-        <div className="row between wrap" style={{ gap: 16 }}>
-          <div className="row wrap" style={{ gap: 8 }}>
-            <span className="row muted" style={{ fontSize: 13, fontWeight: 600, marginRight: 4 }}>
-              <SlidersHorizontal size={15} style={{ marginRight: 6 }} /> Priority
-            </span>
-            {PRIORITIES.map((p) => (
-              <button
-                key={p.key}
-                className={`chip${priority === p.key ? ' active' : ''}`}
-                onClick={() => setPriority(p.key)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div className="row wrap" style={{ gap: 8 }}>
-            {categories.map((c) => (
-              <button
-                key={c}
-                className={`chip${category === c ? ' active' : ''}`}
-                onClick={() => setCategory(c)}
-              >
-                {c === 'all' ? 'All types' : c}
-              </button>
-            ))}
-          </div>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <span className="row muted" style={{ fontSize: 13, fontWeight: 600, marginRight: 4 }}>
+            <SlidersHorizontal size={15} style={{ marginRight: 6 }} /> Priority
+          </span>
+          {PRIORITIES.map((p) => (
+            <button
+              key={p.key}
+              className={`chip${priority === p.key ? ' active' : ''}`}
+              onClick={() => setPriority(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
       </Card>
 
       {filtered.length === 0 ? (
-        <Card className="empty">No signals match these filters.</Card>
+        <Card className="empty">No intelligence matches this filter.</Card>
       ) : (
         <div className="grid cols-2" style={{ gap: 18 }}>
-          {filtered.map((s) => (
-            <SignalCard key={s.id} signal={s} />
-          ))}
+          {filtered.map(({ client, intel }) => {
+            const top = intel.signals?.[0]
+            return (
+              <Link key={client.id} to={`/intelligence/${client.id}`} className="card intel-item">
+                <div className="pcc-accent" data-priority={intel.priority} />
+                <div className="card-pad">
+                  <div className="row between" style={{ marginBottom: 10 }}>
+                    <div className="row" style={{ gap: 10 }}>
+                      <span className="avatar-lg" style={{ width: 38, height: 38, fontSize: 13 }}>
+                        {initialsOf(client.name)}
+                      </span>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{client.name}</div>
+                        <div className="muted" style={{ fontSize: 12 }}>{client.id} · {client.riskProfile}</div>
+                      </div>
+                    </div>
+                    <Badge tone={priorityTone[intel.priority]}>{intel.priority}</Badge>
+                  </div>
+
+                  {top && (
+                    <div className="intel-signal">
+                      <ShieldAlert size={14} />
+                      <span>{top.title}</span>
+                    </div>
+                  )}
+
+                  <div className="row between" style={{ marginTop: 14 }}>
+                    {intel.relevanceScore != null && (
+                      <span className="muted" style={{ fontSize: 12.5 }}>
+                        Relevance <strong style={{ color: 'var(--ink)' }}>{intel.relevanceScore}</strong>/100
+                      </span>
+                    )}
+                    <span className="link-gold" style={{ fontSize: 12.5 }}>
+                      Open detail <ArrowRight size={13} />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>
@@ -113,8 +145,4 @@ function SummaryTile({ tone, label, value, note }) {
 
 function toneVar(tone) {
   return { high: 'danger', medium: 'warn', low: 'ok' }[tone]
-}
-
-function rank(p) {
-  return { high: 0, medium: 1, low: 2 }[p] ?? 3
 }

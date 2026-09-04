@@ -12,7 +12,13 @@ import {
 } from 'recharts'
 import { FlaskConical, TrendingDown, Info, ArrowDownRight, ArrowUpRight, FileText } from 'lucide-react'
 import { PageHeader, Card, Loading } from '../components/ui.jsx'
-import { getClients, getPortfolio } from '../services/dataService.js'
+import ScenarioPanel from '../components/ScenarioPanel.jsx'
+import {
+  getClients,
+  getPortfolio,
+  getClientIntelligence,
+  getOfficialClientById,
+} from '../services/dataService.js'
 import { formatChf, formatPct } from '../utils/format.js'
 
 // Simple, transparent sensitivity model. Each asset class has an assumed
@@ -109,10 +115,38 @@ export default function ScenarioLab() {
   const [fx,        setFx]        = useState(0)
   const [preset,    setPreset]    = useState('equity')
 
+  // Official client-specific scenario objects, if the URL points at an
+  // official client (e.g. ?client=CL-0019) that has scenarios attached.
+  const [officialScenarios, setOfficialScenarios] = useState(null) // { client, scenarios } | null
+
   // Load all clients once.
   useEffect(() => {
     getClients().then(setClients)
   }, [])
+
+  // If the ?client= param is an official client with scenario objects, load
+  // them so we can render the structured Scenario / Stress-test panel.
+  useEffect(() => {
+    const requested = searchParams.get('client')
+    if (!requested) {
+      setOfficialScenarios(null)
+      return
+    }
+    let active = true
+    Promise.all([getClientIntelligence(requested), getOfficialClientById(requested)]).then(
+      ([intel, client]) => {
+        if (!active) return
+        if (intel?.scenarios?.length) {
+          setOfficialScenarios({ client, scenarios: intel.scenarios })
+        } else {
+          setOfficialScenarios(null)
+        }
+      }
+    )
+    return () => {
+      active = false
+    }
+  }, [searchParams])
 
   // Load portfolio whenever a specific client is selected; clear on whole-book.
   useEffect(() => {
@@ -186,6 +220,21 @@ export default function ScenarioLab() {
         title="Prepare for the conversation before it happens"
         subtitle="Model a market shock across the book or a single client, so you can speak to downside with specifics rather than reassurance."
       />
+
+      {/* Official client-specific scenario objects (structured, from the
+          intelligence layer). Shown above the exploratory model below. */}
+      {officialScenarios?.scenarios?.length > 0 && (
+        <div className="grid" style={{ gap: 18, marginBottom: 28 }}>
+          {officialScenarios.scenarios.map((sc) => (
+            <ScenarioPanel key={sc.id} scenario={sc} client={officialScenarios.client} />
+          ))}
+          <div className="row" style={{ gap: 10, color: 'var(--ink-muted)', fontSize: 12.5 }}>
+            <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
+            Exploratory model below
+            <span style={{ flex: 1, height: 1, background: 'var(--line)' }} />
+          </div>
+        </div>
+      )}
 
       <div className="scenario-grid">
         {/* ── Controls (unchanged) ── */}

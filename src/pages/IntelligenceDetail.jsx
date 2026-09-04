@@ -1,331 +1,295 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
+import { ArrowLeft, ShieldAlert, NotebookPen, ListTree, AlertCircle, FlaskConical, FileText } from 'lucide-react'
+import { PageHeader, Card, Badge, Loading } from '../components/ui.jsx'
+import WhyThisClient from '../components/WhyThisClient.jsx'
+import SnapshotTimeline from '../components/SnapshotTimeline.jsx'
+import AlignmentMonitor from '../components/AlignmentMonitor.jsx'
+import RMBrief from '../components/RMBrief.jsx'
+import { EvidenceInspector, EvidenceButton } from '../components/EvidenceInspector.jsx'
 import {
-  ArrowLeft,
-  ChevronDown,
-  Gauge,
-  Activity,
-  Target,
-  Clock,
-  FlaskConical,
-  FileText,
-  CheckCircle2,
-  Check,
-  Info,
-  TrendingDown,
-} from 'lucide-react'
-import { Card, Badge, PriorityBadge, Loading } from '../components/ui.jsx'
-import { getIntelligenceById, getClientById } from '../services/dataService.js'
-import { formatMoney, formatPct, formatDate } from '../utils/format.js'
+  getClientIntelligence,
+  getOfficialClientById,
+  getClientBrief,
+  getBriefStatus,
+  setBriefStatus,
+} from '../services/dataService.js'
+import { formatDate } from '../utils/format.js'
 
-const FACTOR_ICONS = {
-  'Portfolio Exposure': Gauge,
-  'Market Impact': Activity,
-  'Goal Sensitivity': Target,
-  Urgency: Clock,
-}
+const priorityTone = { HIGH: 'high', MEDIUM: 'medium', LOW: 'low', NONE: 'neutral' }
+const priorityLabel = { HIGH: 'High priority', MEDIUM: 'Monitor', LOW: 'Low', NONE: 'No action' }
+const severityTone = { HIGH: 'high', MEDIUM: 'medium', LOW: 'low' }
+
+const humanType = (t = '') =>
+  t.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
 
 export default function IntelligenceDetail() {
+  // The route param is a CLIENT id (e.g. CL-0014).
   const { id } = useParams()
-  const navigate = useNavigate()
   const [state, setState] = useState({ loading: true })
-  const [openEvidence, setOpenEvidence] = useState(0)
-  const [reviewed, setReviewed] = useState(false)
+  const [evidence, setEvidence] = useState(null) // { title, items } | null
+  const [brief, setBrief] = useState(null)
+  const [briefStatus, setBriefStatusState] = useState('none')
+  const [briefOpen, setBriefOpen] = useState(false)
 
   useEffect(() => {
     let active = true
     setState({ loading: true })
-    getIntelligenceById(id).then((signal) => {
-      if (!signal) {
-        if (active) setState({ loading: false, signal: null })
-        return
-      }
-      getClientById(signal.clientId).then((client) => {
-        if (active) setState({ loading: false, signal, client })
-      })
+    Promise.all([
+      getClientIntelligence(id),
+      getOfficialClientById(id),
+      getClientBrief(id),
+      getBriefStatus(id),
+    ]).then(([intel, client, briefObj, status]) => {
+      if (!active) return
+      setState({ loading: false, intel, client })
+      setBrief(briefObj)
+      setBriefStatusState(status)
+      setBriefOpen(status === 'ready') // auto-show an already-approved brief
     })
     return () => {
       active = false
     }
   }, [id])
 
+  const changeBriefStatus = (next) => {
+    setBriefStatus(id, next).then(() => setBriefStatusState(next))
+  }
+
   if (state.loading) return <Loading label="Opening intelligence" />
-  const { signal, client } = state
-  if (!signal) {
+  const { intel, client } = state
+
+  if (!intel) {
     return (
       <div>
         <Link className="link-gold" to="/intelligence" style={{ display: 'inline-flex', marginBottom: 16 }}>
           <ArrowLeft size={15} /> All intelligence
         </Link>
-        <Card className="empty">This intelligence item could not be found.</Card>
+        <Card className="empty">No intelligence has been generated for this client yet.</Card>
       </div>
     )
   }
 
-  const impactNegative = signal.scenarioImpact != null && signal.scenarioImpact < 0
+  const name = client?.name || intel.clientId
+  const priority = intel.priority || 'NONE'
+
+  // Alignment signal (mandate breach / objective contradiction) drives the
+  // Client Alignment Monitor. Context rows are drawn from other signals'
+  // headline metrics + client life stage, so the monitor explains why the
+  // misalignment matters beyond the breach itself.
+  const alignmentSignal = (intel.signals || []).find((s) =>
+    ['MANDATE_BREACH', 'OBJECTIVE_CONTRADICTION'].includes(s.type)
+  )
+  const alignmentContext = []
+  if (alignmentSignal) {
+    for (const s of intel.signals) {
+      if (s === alignmentSignal) continue
+      const m = s.verifiedMetrics?.[0]
+      if (m) alignmentContext.push({ label: s.title, value: m.value })
+    }
+    if (client?.lifeStage) alignmentContext.push({ label: 'Life context', value: client.lifeStage })
+  }
 
   return (
     <div>
-      <Link className="link-gold" to="/intelligence" style={{ display: 'inline-flex', marginBottom: 16 }}>
-        <ArrowLeft size={15} /> All intelligence
+      <Link className="link-gold" to={`/clients/${intel.clientId}`} style={{ display: 'inline-flex', marginBottom: 16 }}>
+        <ArrowLeft size={15} /> {name}
       </Link>
 
-      {/* Header */}
-      <div className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
-        <PriorityBadge priority={signal.priority} />
-        <Badge tone="neutral">{signal.category}</Badge>
-        <span className="muted row" style={{ fontSize: 12.5, gap: 5 }}>
-          <Clock size={13} /> {signal.horizon}
-        </span>
-        <span className="muted" style={{ fontSize: 12.5 }}>· Detected {formatDate(signal.createdAt)}</span>
-      </div>
+      <PageHeader
+        eyebrow={`Intelligence · ${intel.clientId}`}
+        title={name}
+        subtitle={client?.lifeStage}
+        actions={<Badge tone={priorityTone[priority]}>{priorityLabel[priority] || priority}</Badge>}
+      />
 
-      <div className="idetail-head">
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <h1 className="page-title" style={{ fontSize: 30 }}>{signal.headline}</h1>
-          <div className="row wrap" style={{ gap: 8, marginTop: 12, alignItems: 'center' }}>
-            <span className="muted" style={{ fontSize: 13.5 }}>For</span>
-            <Link to={`/clients/${signal.clientId}`} className="idetail-client">
-              {signal.clientName}
-            </Link>
-            {client && (
-              <span className="muted" style={{ fontSize: 13 }}>
-                · {client.riskProfile} Risk · Client {client.clientId}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Relevance score dial */}
-        <div className="relevance-dial">
-          <ScoreRing value={signal.relevanceScore} />
-          <div>
-            <div className="eyebrow">Relevance Score</div>
-            <div className="relevance-big">
-              {signal.relevanceScore}
-              <span className="relevance-unit"> / 100</span>
-            </div>
-            <div className="muted" style={{ fontSize: 12 }}>Client-specific, not market-wide</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid" style={{ gridTemplateColumns: '1.6fr 1fr', alignItems: 'start', marginTop: 24 }}>
-        {/* Left column: reasoning */}
+      <div className="grid" style={{ gridTemplateColumns: '1.5fr 1fr', alignItems: 'start' }}>
+        {/* Left: alignment monitor (if applicable) + signals + history */}
         <div className="grid" style={{ gap: 20 }}>
-          {/* Factor breakdown */}
-          <Card>
-            <div className="card-head"><h3>How this score is composed</h3></div>
-            <div className="card-pad">
-              {signal.relevanceFactors.map((f) => {
-                const Icon = FACTOR_ICONS[f.label] || Gauge
-                return (
-                  <div className="factor" key={f.label}>
-                    <div className="factor-top">
-                      <span className="factor-label">
-                        <Icon size={15} /> {f.label}
-                      </span>
-                      <span className="factor-score">{f.score}</span>
+          {alignmentSignal && (
+            <AlignmentMonitor
+              signal={alignmentSignal}
+              client={client}
+              context={alignmentContext}
+            />
+          )}
+
+          {/* Signals */}
+          <div>
+            <h3 className="serif" style={{ fontSize: 17, margin: '0 0 14px' }}>Signals</h3>
+            <div className="grid" style={{ gap: 14 }}>
+              {(intel.signals || []).map((sig) => (
+                <Card className="card-pad" key={sig.id}>
+                  <div className="row between wrap" style={{ gap: 8, marginBottom: 8 }}>
+                    <div className="row wrap" style={{ gap: 8 }}>
+                      <Badge tone={severityTone[sig.severity] || 'neutral'}>{sig.severity}</Badge>
+                      <Badge tone="neutral">{humanType(sig.type)}</Badge>
                     </div>
-                    <div className="factor-track">
-                      <span style={{ width: `${f.score}%`, background: scoreColor(f.score) }} />
-                    </div>
-                    {f.note && <div className="factor-note">{f.note}</div>}
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-
-          {/* What Changed */}
-          <Section title="What Changed">
-            <p className="reasoning">{signal.whatChanged}</p>
-          </Section>
-
-          {/* Why This Client */}
-          <Section title="Why This Client">
-            <ul className="why-list">
-              {signal.whyClient.map((w) => (
-                <li key={w}>
-                  <span className="why-dot" />
-                  <span>{w}</span>
-                </li>
-              ))}
-            </ul>
-          </Section>
-
-          {/* Why It Matters */}
-          <Section title="Why It Matters" accent>
-            <p className="reasoning">{signal.whyItMatters}</p>
-            {signal.scenarioImpact != null && (
-              <div className={`impact-callout ${impactNegative ? 'neg' : 'pos'}`}>
-                <TrendingDown size={16} />
-                <span>
-                  Modelled scenario impact:{' '}
-                  <strong>
-                    {signal.scenarioImpact > 0 ? '+' : ''}
-                    {formatMoney(signal.scenarioImpact, { compact: false })}
-                  </strong>
-                </span>
-              </div>
-            )}
-          </Section>
-
-          {/* Evidence */}
-          <Card>
-            <div className="card-head">
-              <h3>Evidence</h3>
-              <span className="muted" style={{ fontSize: 12.5 }}>Traceable underlying data</span>
-            </div>
-            <div>
-              {signal.evidence.map((e, i) => {
-                const open = openEvidence === i
-                return (
-                  <div className="evidence-item" key={e.title}>
-                    <button
-                      className="evidence-head"
-                      onClick={() => setOpenEvidence(open ? -1 : i)}
-                      aria-expanded={open}
-                    >
-                      <span>
-                        <span className="evidence-title">{e.title}</span>
-                        {e.summary && <span className="evidence-summary">{e.summary}</span>}
-                      </span>
-                      <ChevronDown
-                        size={18}
-                        style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s ease', flexShrink: 0 }}
+                    {sig.evidence?.length > 0 && (
+                      <EvidenceButton
+                        count={sig.evidence.length}
+                        onClick={() => setEvidence({ title: sig.title, items: sig.evidence })}
                       />
-                    </button>
-                    {open && e.rows && e.rows.length > 0 && (
-                      <div className="evidence-body">
-                        {e.rows.map((r) => (
-                          <div className="evidence-row" key={r.label}>
-                            <span className="k">{r.label}</span>
-                            <span className="v">{r.value}</span>
-                          </div>
-                        ))}
-                      </div>
                     )}
                   </div>
-                )
-              })}
+
+                  <h4 style={{ fontSize: 16, margin: '0 0 6px' }}>
+                    <ShieldAlert size={15} style={{ verticalAlign: -2, marginRight: 6, color: 'var(--danger)' }} />
+                    {sig.title}
+                  </h4>
+                  {sig.summary && (
+                    <p className="soft" style={{ fontSize: 13.5, margin: '0 0 12px' }}>{sig.summary}</p>
+                  )}
+
+                  {/* Verified metrics */}
+                  {sig.verifiedMetrics?.length > 0 && (
+                    <div className="verified-metrics">
+                      <div className="eyebrow" style={{ marginBottom: 8 }}>Verified metrics</div>
+                      {sig.verifiedMetrics.map((m) => (
+                        <div className="kv" key={m.label}>
+                          <span className="k">
+                            {m.label}
+                            {m.basis && <span className="metric-basis"> — {m.basis}</span>}
+                          </span>
+                          <span className="v">{m.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Uncertainty — explicit, never hidden */}
+                  {sig.uncertainty && (
+                    <div className="uncertainty">
+                      <AlertCircle size={14} />
+                      <span><strong>Uncertainty:</strong> {sig.uncertainty}</span>
+                    </div>
+                  )}
+                </Card>
+              ))}
             </div>
-          </Card>
+          </div>
+
+          {/* RM Brief — generated draft for human review */}
+          {brief && (
+            briefOpen ? (
+              <>
+                <RMBrief
+                  brief={brief}
+                  status={briefStatus}
+                  clientName={name}
+                  onStatusChange={changeBriefStatus}
+                />
+                {briefStatus === 'ready' && (
+                  <Card className="card-pad">
+                    <div className="row between wrap" style={{ gap: 12 }}>
+                      <div className="soft" style={{ fontSize: 13.5 }}>
+                        Brief approved. A simplified client-facing version is now available.
+                      </div>
+                      <a
+                        className="btn btn-sm"
+                        href={`/client-view/${intel.clientId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <FileText size={14} /> Open client view
+                      </a>
+                    </div>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card className="card-pad">
+                <div className="row between wrap" style={{ gap: 12 }}>
+                  <div>
+                    <div className="eyebrow" style={{ marginBottom: 4 }}>RM Brief</div>
+                    <div className="soft" style={{ fontSize: 13.5 }}>
+                      Generate a structured brief for your review. You edit, reject or mark it ready.
+                    </div>
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={() => setBriefOpen(true)}>
+                    <FileText size={14} /> Generate RM Brief
+                  </button>
+                </div>
+              </Card>
+            )
+          )}
+
+          {/* Scenario link — when the engine has attached stress tests */}
+          {intel.scenarios?.length > 0 && (
+            <Card className="card-pad">
+              <div className="row between wrap" style={{ gap: 12 }}>
+                <div>
+                  <div className="eyebrow" style={{ marginBottom: 4 }}>Scenario / stress test</div>
+                  <div className="soft" style={{ fontSize: 13.5 }}>
+                    {intel.scenarios.length === 1
+                      ? intel.scenarios[0].name
+                      : `${intel.scenarios.length} scenarios available`} — not a forecast.
+                  </div>
+                </div>
+                <Link className="btn btn-primary btn-sm" to={`/scenario-lab?client=${intel.clientId}`}>
+                  <FlaskConical size={14} /> Open in Scenario Lab
+                </Link>
+              </div>
+            </Card>
+          )}
+
+          {/* Historical changes */}
+          {intel.snapshotHistory && (
+            <SnapshotTimeline history={intel.snapshotHistory} title="How this changed over time" />
+          )}
         </div>
 
-        {/* Right rail: preparation + actions */}
+        {/* Right: why this client + priority breakdown + rm context */}
         <div className="grid" style={{ gap: 20 }}>
-          <Card className="card-pad prep-card">
-            <div className="eyebrow" style={{ marginBottom: 12 }}>Suggested RM Preparation</div>
-            <p className="reasoning" style={{ marginTop: 0 }}>{signal.suggestedPreparation}</p>
-            <div className="prep-disclaimer">
-              <Info size={15} />
-              <span>
-                Decision support only. This is not investment advice and no action has been taken.
-                The Relationship Manager remains responsible for the final decision and client interaction.
-              </span>
-            </div>
-          </Card>
+          <WhyThisClient intelligence={intel} client={client} />
 
-          <Card className="card-pad">
-            <div className="eyebrow" style={{ marginBottom: 12 }}>Actions</div>
-            <div className="grid" style={{ gap: 10 }}>
-              <button
-                className="btn btn-primary"
-                style={{ justifyContent: 'center' }}
-                onClick={() => navigate(`/scenario-lab?client=${signal.clientId}`)}
-              >
-                <FlaskConical size={15} /> Simulate Scenario
-              </button>
-              <button
-                className="btn"
-                style={{ justifyContent: 'center' }}
-                onClick={() => navigate('/briefings')}
-              >
-                <FileText size={15} /> Prepare Client Brief
-              </button>
-              <button
-                className={`btn ${reviewed ? 'btn-reviewed' : ''}`}
-                style={{ justifyContent: 'center' }}
-                onClick={() => setReviewed((r) => !r)}
-              >
-                {reviewed ? <Check size={15} /> : <CheckCircle2 size={15} />}
-                {reviewed ? 'Reviewed' : 'Mark Reviewed'}
-              </button>
-            </div>
-          </Card>
-
-          {client && (
+          {/* Priority breakdown — documented components, not a magic number */}
+          {intel.priorityBreakdown?.length > 0 && (
             <Card className="card-pad">
-              <div className="eyebrow" style={{ marginBottom: 12 }}>Client snapshot</div>
-              <div className="kv">
-                <span className="k">Portfolio value</span>
-                <span className="v">{formatMoney(client.aumChf)}</span>
+              <div className="eyebrow row" style={{ gap: 8, marginBottom: 4 }}>
+                <ListTree size={14} /> Why this priority?
               </div>
-              <div className="kv">
-                <span className="k">Risk profile</span>
-                <span className="v">{client.riskProfile}</span>
+              <div className="row between" style={{ margin: '10px 0 12px' }}>
+                <span className="muted" style={{ fontSize: 13 }}>Priority score</span>
+                <span className="impact-figure" style={{ fontSize: 26 }}>{intel.priorityScore}</span>
               </div>
-              {signal.exposurePct != null && (
-                <div className="kv">
-                  <span className="k">Exposure concerned</span>
-                  <span className="v">{formatPct(signal.exposurePct)}</span>
+              {intel.priorityBreakdown.map((b) => (
+                <div className="kv" key={b.label}>
+                  <span className="k">{b.label}</span>
+                  <span className="v">+{b.points}</span>
                 </div>
-              )}
-              {client.liquidityRequirement && (
-                <div className="kv">
-                  <span className="k">Liquidity need</span>
-                  <span className="v">
-                    {formatMoney(client.liquidityRequirement.amount)} / {client.liquidityRequirement.months}m
-                  </span>
-                </div>
-              )}
-              <Link className="link-gold" to={`/clients/${client.id}`} style={{ marginTop: 12, display: 'inline-flex' }}>
-                Open full profile
-              </Link>
+              ))}
+            </Card>
+          )}
+
+          {/* RM context */}
+          {intel.rmContext?.length > 0 && (
+            <Card className="card-pad">
+              <div className="eyebrow row" style={{ gap: 8, marginBottom: 12 }}>
+                <NotebookPen size={14} /> RM context
+              </div>
+              <div className="grid" style={{ gap: 12 }}>
+                {intel.rmContext.map((n, i) => (
+                  <div key={i}>
+                    <div className="muted" style={{ fontSize: 11.5 }}>
+                      {formatDate(n.date)}{n.author ? ` · ${n.author}` : ''}
+                    </div>
+                    <p className="soft" style={{ fontSize: 13, margin: '3px 0 0' }}>{n.note}</p>
+                  </div>
+                ))}
+              </div>
             </Card>
           )}
         </div>
       </div>
+
+      {/* Evidence drawer */}
+      <EvidenceInspector
+        open={Boolean(evidence)}
+        onClose={() => setEvidence(null)}
+        title={evidence?.title}
+        evidence={evidence?.items || []}
+      />
     </div>
   )
-}
-
-function Section({ title, children, accent }) {
-  return (
-    <Card className="card-pad">
-      <div className={`eyebrow${accent ? ' eyebrow-accent' : ''}`} style={{ marginBottom: 10 }}>{title}</div>
-      {children}
-    </Card>
-  )
-}
-
-function ScoreRing({ value }) {
-  const r = 30
-  const c = 2 * Math.PI * r
-  const offset = c * (1 - (value || 0) / 100)
-  return (
-    <svg width="76" height="76" viewBox="0 0 76 76" className="score-ring">
-      <circle cx="38" cy="38" r={r} fill="none" stroke="var(--line)" strokeWidth="7" />
-      <circle
-        cx="38"
-        cy="38"
-        r={r}
-        fill="none"
-        stroke={scoreColor(value)}
-        strokeWidth="7"
-        strokeLinecap="round"
-        strokeDasharray={c}
-        strokeDashoffset={offset}
-        transform="rotate(-90 38 38)"
-      />
-      <text x="38" y="43" textAnchor="middle" className="score-ring-text">{value}</text>
-    </svg>
-  )
-}
-
-function scoreColor(v) {
-  if (v >= 80) return 'var(--danger)'
-  if (v >= 60) return 'var(--warn)'
-  return 'var(--ok)'
 }

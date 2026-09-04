@@ -14,6 +14,17 @@ import { briefings } from '../data/briefings.js'
 import { marketSnapshot, marketNarratives } from '../data/market.js'
 import { notifications as seedNotifications } from '../data/notifications.js'
 import { preferenceSchema, defaultPreferences } from '../data/preferences.js'
+import {
+  adapterGetRm,
+  adapterGetClients,
+  adapterGetClientById,
+  adapterGetIntelligenceForClient,
+  adapterHasIntelligence,
+  adapterGetSnapshotDates,
+  adapterGetBrief,
+  adapterGetBriefStatus,
+  adapterSetBriefStatus,
+} from '../data/integrationAdapter.js'
 
 // Simulate latency so loading states are realistic. Set to 0 to disable.
 const LATENCY_MS = 0
@@ -105,6 +116,37 @@ export const getBriefingById = (id) =>
 // --- Market ---
 export const getMarketSnapshot = () => resolve(clone(marketSnapshot))
 export const getMarketNarratives = () => resolve(clone(marketNarratives))
+
+// =============================================================================
+// OFFICIAL DATA (Julius Baer challenge) — served via the integration adapter.
+// These are the getters the RM experience consumes. When the intelligence
+// engine is ready, only integrationAdapter.js changes; these signatures stay.
+// =============================================================================
+
+// Official RM (Priscilla Ong) and the 20-client book.
+export const getOfficialRm = () => resolve(clone(adapterGetRm()))
+
+export const getOfficialClients = () => resolve(clone(adapterGetClients()))
+
+export const getOfficialClientById = (id) =>
+  resolve(clone(adapterGetClientById(id)))
+
+// Full contract-shaped intelligence object for a client (null if none yet).
+export const getClientIntelligence = (id) =>
+  resolve(clone(adapterGetIntelligenceForClient(id)))
+
+export const hasClientIntelligence = (id) => resolve(adapterHasIntelligence(id))
+
+// The five official snapshot dates.
+export const getSnapshotDates = () => resolve(clone(adapterGetSnapshotDates()))
+
+// --- RM brief + human-in-the-loop review status ---
+// The brief is a draft for human review; the app never executes from it.
+export const getClientBrief = (id) => resolve(clone(adapterGetBrief(id)))
+
+export const getBriefStatus = (id) => resolve(adapterGetBriefStatus(id))
+
+export const setBriefStatus = (id, status) => resolve(adapterSetBriefStatus(id, status))
 
 // --- Notifications ---
 // Generic, mock notifications. Read-state is held in a module-level copy so the

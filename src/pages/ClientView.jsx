@@ -12,12 +12,13 @@
 // speak to your RM.
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { Loading } from '../components/ui.jsx'
 import {
-  getClientById,
-  getIntelligenceForClient,
-  getRelationshipManager,
+  getOfficialClientById,
+  getClientBrief,
+  getBriefStatus,
+  getOfficialRm,
 } from '../services/dataService.js'
 import { initialsOf } from '../utils/format.js'
 
@@ -29,15 +30,12 @@ export default function ClientView() {
     let active = true
     setState({ loading: true })
     Promise.all([
-      getClientById(id),
-      getIntelligenceForClient(id),
-      getRelationshipManager(),
-    ]).then(([client, signals, rm]) => {
-      if (active) {
-        // Use the highest-priority signal as the primary intelligence item.
-        const signal = signals.sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority))[0] ?? null
-        setState({ loading: false, client, signal, rm })
-      }
+      getOfficialClientById(id),
+      getClientBrief(id),
+      getBriefStatus(id),
+      getOfficialRm(),
+    ]).then(([client, brief, briefStatus, rm]) => {
+      if (active) setState({ loading: false, client, brief, briefStatus, rm })
     })
     return () => { active = false }
   }, [id])
@@ -48,7 +46,7 @@ export default function ClientView() {
     </div>
   )
 
-  const { client, signal, rm } = state
+  const { client, brief, briefStatus, rm } = state
 
   if (!client) return (
     <div style={fullPageCenter}>
@@ -57,6 +55,33 @@ export default function ClientView() {
       </p>
     </div>
   )
+
+  // Gate: the client-facing view only appears once the RM has reviewed and
+  // marked the brief ready. Until then, nothing client-facing is shown.
+  if (briefStatus !== 'ready' || !brief) {
+    return (
+      <div style={fullPageCenter}>
+        <div style={{ textAlign: 'center', maxWidth: 420, padding: 24 }}>
+          <div style={{ ...brandMarkStyle, margin: '0 auto 16px' }}>
+            <svg width="16" height="16" viewBox="0 0 32 32">
+              <circle cx="16" cy="16" r="8" fill="none" stroke="#c8a24a" strokeWidth="2" />
+              <circle cx="16" cy="16" r="2.6" fill="#c8a24a" />
+            </svg>
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-serif)', color: 'var(--ink)', marginBottom: 8 }}>
+            Nothing to share yet
+          </h2>
+          <p style={{ color: 'var(--ink-muted)', fontSize: 14, lineHeight: 1.6, margin: 0 }}>
+            This client-facing update becomes available once your Relationship Manager has
+            reviewed and marked the brief ready.
+          </p>
+          <Link className="link-gold" to={`/intelligence/${id}`} style={{ marginTop: 18, display: 'inline-flex' }}>
+            Back to intelligence
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const rmName    = rm?.name  ?? 'Your Relationship Manager'
   const rmTitle   = rm?.title ?? 'Relationship Manager'
@@ -132,24 +157,16 @@ export default function ClientView() {
       {/* ── Main content grid (left: stacked cards, right: dark RM card) ── */}
       <div className="content-grid" style={{ width: '100%' }}>
         <div className="left-col">
-          {/* Section 1 — What happened */}
+          {/* Section 1 — What happened (from the approved brief) */}
           <div style={sectionCardStyle} className="section-card">
             <div style={questionLabelStyle}>What happened?</div>
-            <p style={answerStyle}>
-              {signal
-                ? plainify(signal.trigger)
-                : 'Technology markets have recently experienced increased volatility.'}
-            </p>
+            <p style={answerStyle}>{brief.situation}</p>
           </div>
 
-          {/* Section 2 — How could this affect my portfolio */}
+          {/* Section 2 — Why this may matter to you */}
           <div style={sectionCardStyle} className="section-card">
-            <div style={questionLabelStyle}>How could this affect my portfolio?</div>
-            <p style={answerStyle}>
-              Your portfolio has a higher-than-average exposure to this sector. This means
-              movements in technology markets may have a greater effect on your portfolio
-              than on a more broadly diversified portfolio.
-            </p>
+            <div style={questionLabelStyle}>Why this may matter to you</div>
+            <p style={answerStyle}>{brief.whyItMatters}</p>
           </div>
         </div>
 
@@ -212,29 +229,6 @@ export default function ClientView() {
       </div>
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// plainify — convert an RM-facing signal trigger sentence into softer
-// client-friendly language by stripping internal terminology.
-// Falls back to the original text if no translation applies.
-// ---------------------------------------------------------------------------
-function plainify(trigger) {
-  if (!trigger) return ''
-  // Soft-translate common RM framing into neutral client language.
-  return trigger
-    .replace(/semiconductor[- ]sector/gi, 'technology')
-    .replace(/intersects with/gi, 'may be relevant to')
-    .replace(/elevated technology exposure/gi, 'your technology holdings')
-    .replace(/upcoming liquidity requirement/gi, 'your upcoming financial plans')
-    .replace(/Catherine Tan's?/gi, 'your')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/\byour\s+your\b/gi, 'your')
-    .trim()
-}
-
-function priorityRank(p) {
-  return { high: 0, medium: 1, low: 2 }[p] ?? 3
 }
 
 // ---------------------------------------------------------------------------

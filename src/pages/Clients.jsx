@@ -2,17 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ChevronUp, ChevronDown, ChevronsUpDown, X } from 'lucide-react'
 import { PageHeader, Card, Badge, Loading } from '../components/ui.jsx'
-import { getClients, getIntelligence } from '../services/dataService.js'
-import { formatChf, initialsOf, timeAgo, daysSince } from '../utils/format.js'
+import { getOfficialClients, getClientIntelligence } from '../services/dataService.js'
+import { initialsOf } from '../utils/format.js'
 
 const RISK_PROFILES = ['All', 'Conservative', 'Moderate', 'Balanced', 'Growth', 'Aggressive']
-const PRIORITIES = ['All', 'High', 'Medium', 'Low', 'None']
-const VALUE_BANDS = [
-  { key: 'All', label: 'Any value', min: 0, max: Infinity },
-  { key: 'lt50', label: '< S$50m', min: 0, max: 50_000_000 },
-  { key: '50-150', label: 'S$50m – 150m', min: 50_000_000, max: 150_000_000 },
-  { key: 'gt150', label: '> S$150m', min: 150_000_000, max: Infinity },
-]
+const PRIORITIES = ['All', 'HIGH', 'MEDIUM', 'LOW', 'NONE']
 const RELEVANCE_BANDS = [
   { key: 'All', label: 'Any score', min: 0 },
   { key: '80', label: '80+', min: 80 },
@@ -20,98 +14,69 @@ const RELEVANCE_BANDS = [
   { key: '40', label: '40+', min: 40 },
 ]
 
-const priorityRank = { High: 3, Medium: 2, Low: 1, None: 0 }
-const priorityTone = { High: 'high', Medium: 'medium', Low: 'low', None: 'neutral' }
+const priorityRank = { HIGH: 3, MEDIUM: 2, LOW: 1, NONE: 0 }
+const priorityTone = { HIGH: 'high', MEDIUM: 'medium', LOW: 'low', NONE: 'neutral' }
+const priorityLabel = { HIGH: 'High', MEDIUM: 'Monitor', LOW: 'Low', NONE: 'No action' }
 
 export default function Clients() {
-  const [clients, setClients] = useState(null)
-  const [signals, setSignals] = useState([])
+  const [rows, setRows] = useState(null)
   const [query, setQuery] = useState('')
   const [risk, setRisk] = useState('All')
   const [priority, setPriority] = useState('All')
-  const [valueBand, setValueBand] = useState('All')
   const [relevanceBand, setRelevanceBand] = useState('All')
-  const [sort, setSort] = useState({ key: 'relevance', dir: 'desc' })
+  const [sort, setSort] = useState({ key: 'priority', dir: 'desc' })
   const navigate = useNavigate()
 
   useEffect(() => {
-    getClients().then(setClients)
-    getIntelligence().then(setSignals)
+    getOfficialClients().then((clients) => {
+      // Attach intelligence-derived priority + relevance where available.
+      // Priority/relevance come from the engine, never a static guess.
+      Promise.all(
+        clients.map((c) =>
+          getClientIntelligence(c.id).then((intel) => ({
+            ...c,
+            priority: intel?.priority || c.priority || 'NONE',
+            relevance: intel?.relevanceScore ?? null,
+          }))
+        )
+      ).then(setRows)
+    })
   }, [])
 
-  // Derive each client's current priority + top relevance from the
-  // intelligence engine. This keeps the table honest: priority is not a
-  // static label, it reflects what the engine currently sees.
-  const intelByClient = useMemo(() => {
-    const map = {}
-    for (const s of signals) {
-      const cur = map[s.clientId]
-      const score = s.relevanceScore ?? 0
-      if (!cur || score > cur.relevance) {
-        map[s.clientId] = {
-          relevance: score,
-          priority: cap(s.priority),
-        }
-      }
-    }
-    return map
-  }, [signals])
-
-  const rows = useMemo(() => {
-    if (!clients) return []
-    return clients.map((c) => {
-      const intel = intelByClient[c.id]
-      return {
-        ...c,
-        priority: intel?.priority ?? 'None',
-        relevance: intel?.relevance ?? 0,
-        lastDays: daysSince(c.contact.lastContact) ?? 9999,
-      }
-    })
-  }, [clients, intelByClient])
-
   const filtered = useMemo(() => {
-    const band = VALUE_BANDS.find((b) => b.key === valueBand)
+    if (!rows) return []
     const rel = RELEVANCE_BANDS.find((b) => b.key === relevanceBand)
     const q = query.trim().toLowerCase()
     let out = rows
       .filter((c) => (risk === 'All' ? true : c.riskProfile === risk))
       .filter((c) => (priority === 'All' ? true : c.priority === priority))
-      .filter((c) => c.aumChf >= band.min && c.aumChf < band.max)
-      .filter((c) => c.relevance >= rel.min)
+      .filter((c) => (rel.min === 0 ? true : (c.relevance ?? 0) >= rel.min))
       .filter(
         (c) =>
           !q ||
           c.name.toLowerCase().includes(q) ||
-          c.clientId.toLowerCase().includes(q) ||
-          c.investmentObjective.toLowerCase().includes(q)
+          c.id.toLowerCase().includes(q) ||
+          (c.lifeStage || '').toLowerCase().includes(q)
       )
 
     const { key, dir } = sort
     const mult = dir === 'asc' ? 1 : -1
     out = [...out].sort((a, b) => {
-      let av
-      let bv
       switch (key) {
         case 'name':
           return a.name.localeCompare(b.name) * mult
-        case 'value':
-          av = a.aumChf; bv = b.aumChf; break
         case 'priority':
-          av = priorityRank[a.priority]; bv = priorityRank[b.priority]; break
+          return (priorityRank[a.priority] - priorityRank[b.priority]) * mult
         case 'relevance':
-          av = a.relevance; bv = b.relevance; break
-        case 'last':
-          av = a.lastDays; bv = b.lastDays; break
+          return ((a.relevance ?? 0) - (b.relevance ?? 0)) * mult
         default:
-          av = a.relevance; bv = b.relevance
+          return 0
       }
-      return (av - bv) * mult
     })
     return out
-  }, [rows, risk, priority, valueBand, relevanceBand, query, sort])
+  }, [rows, risk, priority, relevanceBand, query, sort])
 
-  if (!clients) return <Loading label="Loading client book" />
+  if (!rows) return <Loading label="Loading client book" />
 
   const toggleSort = (key) =>
     setSort((s) =>
@@ -119,10 +84,10 @@ export default function Clients() {
     )
 
   const filtersActive =
-    risk !== 'All' || priority !== 'All' || valueBand !== 'All' || relevanceBand !== 'All' || query
+    risk !== 'All' || priority !== 'All' || relevanceBand !== 'All' || query
 
   const clearFilters = () => {
-    setRisk('All'); setPriority('All'); setValueBand('All'); setRelevanceBand('All'); setQuery('')
+    setRisk('All'); setPriority('All'); setRelevanceBand('All'); setQuery('')
   }
 
   return (
@@ -130,7 +95,7 @@ export default function Clients() {
       <PageHeader
         eyebrow="Clients"
         title="Your relationships"
-        subtitle="A searchable book of high and ultra-high net worth clients. Priority and relevance are set by the intelligence engine, not by a static label."
+        subtitle="The official client book. Priority and relevance are set by the intelligence engine, not by a static label."
       />
 
       {/* Search + filters */}
@@ -138,7 +103,7 @@ export default function Clients() {
         <div className="search" style={{ maxWidth: 420, margin: '0 0 16px' }}>
           <Search size={16} />
           <input
-            placeholder="Search by name, client ID or objective…"
+            placeholder="Search by name, client ID or context…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -146,13 +111,12 @@ export default function Clients() {
 
         <div className="filter-grid">
           <FilterGroup label="Risk profile" options={RISK_PROFILES} value={risk} onChange={setRisk} />
-          <FilterGroup label="Priority" options={PRIORITIES} value={priority} onChange={setPriority} />
           <FilterGroup
-            label="Portfolio value"
-            options={VALUE_BANDS.map((b) => b.key)}
-            labels={VALUE_BANDS.map((b) => b.label)}
-            value={valueBand}
-            onChange={setValueBand}
+            label="Priority"
+            options={PRIORITIES}
+            labels={PRIORITIES.map((p) => (p === 'All' ? 'All' : priorityLabel[p]))}
+            value={priority}
+            onChange={setPriority}
           />
           <FilterGroup
             label="Relevance score"
@@ -186,12 +150,10 @@ export default function Clients() {
                 <tr>
                   <Th label="Client" col="name" sort={sort} onSort={toggleSort} />
                   <th>Client ID</th>
-                  <Th label="Portfolio Value" col="value" sort={sort} onSort={toggleSort} align="right" />
                   <th>Risk Profile</th>
-                  <th>Investment Objective</th>
+                  <th>Context</th>
                   <Th label="Current Priority" col="priority" sort={sort} onSort={toggleSort} />
                   <Th label="Relevance" col="relevance" sort={sort} onSort={toggleSort} align="right" />
-                  <Th label="Last Interaction" col="last" sort={sort} onSort={toggleSort} />
                 </tr>
               </thead>
               <tbody>
@@ -204,22 +166,18 @@ export default function Clients() {
                         </span>
                         <span>
                           <span style={{ fontWeight: 600, display: 'block' }}>{c.name}</span>
-                          <span className="muted" style={{ fontSize: 12 }}>{c.segment} · {c.domicile}</span>
+                          <span className="muted" style={{ fontSize: 12 }}>{c.domicile}</span>
                         </span>
                       </div>
                     </td>
-                    <td className="mono muted">{c.clientId}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatChf(c.aumChf)}</td>
+                    <td className="mono muted">{c.id}</td>
                     <td>{c.riskProfile}</td>
-                    <td className="soft" style={{ maxWidth: 220 }}>{c.investmentObjective}</td>
+                    <td className="soft" style={{ maxWidth: 240 }}>{c.lifeStage || '—'}</td>
                     <td>
-                      <Badge tone={priorityTone[c.priority]}>{c.priority}</Badge>
+                      <Badge tone={priorityTone[c.priority]}>{priorityLabel[c.priority] || c.priority}</Badge>
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <RelevanceCell score={c.relevance} />
-                    </td>
-                    <td className={c.lastDays > (c.contact.cadenceDays || 60) ? 'neg' : 'muted'}>
-                      {timeAgo(c.contact.lastContact)}
                     </td>
                   </tr>
                 ))}
@@ -272,7 +230,7 @@ function FilterGroup({ label, options, labels, value, onChange }) {
 }
 
 function RelevanceCell({ score }) {
-  if (!score) return <span className="muted">—</span>
+  if (score == null) return <span className="muted">—</span>
   const tone = score >= 80 ? 'var(--danger)' : score >= 60 ? 'var(--warn)' : 'var(--ok)'
   return (
     <span className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
@@ -282,8 +240,4 @@ function RelevanceCell({ score }) {
       </span>
     </span>
   )
-}
-
-function cap(s = '') {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }

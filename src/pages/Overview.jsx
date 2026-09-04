@@ -1,85 +1,70 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ArrowRight,
-  ArrowUpRight,
-  ArrowDownRight,
-  CalendarClock,
-  Users,
-  Activity,
-  AlertTriangle,
-  BellOff,
-} from 'lucide-react'
+import { ArrowRight, Users, AlertTriangle, Eye, CircleCheck } from 'lucide-react'
 import { PageHeader, Card, Loading } from '../components/ui.jsx'
-import SignalCard from '../components/SignalCard.jsx'
+import PriorityClientCard from '../components/PriorityClientCard.jsx'
 import {
-  getRelationshipManager,
-  getIntelligence,
-  getBriefings,
-  getMarketSnapshot,
-  getMarketNarratives,
+  getOfficialRm,
+  getOfficialClients,
+  getClientIntelligence,
 } from '../services/dataService.js'
-import { formatDateTime } from '../utils/format.js'
+
+// Attention buckets derived from client priority. No invented figures — every
+// number is a count of real clients in the official book.
+const bucketOf = (priority) => {
+  if (priority === 'HIGH') return 'attention'
+  if (priority === 'MEDIUM') return 'monitor'
+  return 'clear' // LOW | NONE
+}
 
 export default function Overview() {
   const [data, setData] = useState(null)
 
   useEffect(() => {
-    Promise.all([
-      getRelationshipManager(),
-      getIntelligence(),
-      getBriefings(),
-      getMarketSnapshot(),
-      getMarketNarratives(),
-    ]).then(([rm, signals, briefings, market, narratives]) => {
-      setData({ rm, signals, briefings, market, narratives })
+    getOfficialRm().then((rm) => {
+      getOfficialClients().then((clients) => {
+        // Attach an intelligence summary where the engine has produced one.
+        Promise.all(
+          clients.map((c) =>
+            getClientIntelligence(c.id).then((intel) => ({
+              client: c,
+              intel: intel ? summariseIntel(intel) : null,
+            }))
+          )
+        ).then((enriched) => setData({ rm, enriched }))
+      })
     })
   }, [])
 
   if (!data) return <Loading label="Preparing your desk" />
 
-  const { rm, signals, briefings, market, narratives } = data
-  const highPriority = signals.filter((s) => s.priority === 'high')
-  const prioritySignals = [...signals].sort(byRelevance)
-  const upcoming = [...briefings].sort(
-    (a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor)
-  )
+  const { rm, enriched } = data
+
+  const attention = enriched.filter((e) => bucketOf(e.client.priority) === 'attention')
+  const monitor = enriched.filter((e) => bucketOf(e.client.priority) === 'monitor')
+  const clear = enriched.filter((e) => bucketOf(e.client.priority) === 'clear')
+
+  // Rank the attention list: presentation clients first, then by priority score.
+  const rankedAttention = [...attention].sort((a, b) => {
+    const ap = a.client.presentation ? 1 : 0
+    const bp = b.client.presentation ? 1 : 0
+    if (ap !== bp) return bp - ap
+    return (b.intel?.priorityScore ?? 0) - (a.intel?.priorityScore ?? 0)
+  })
 
   const kpis = [
-    {
-      icon: Users,
-      value: rm.clientsMonitored,
-      label: 'Clients Monitored',
-      note: 'Across your book',
-    },
-    {
-      icon: Activity,
-      value: rm.marketDevelopmentsAnalysed,
-      label: 'Market Developments Analysed',
-      note: 'In the last 24 hours',
-    },
-    {
-      icon: AlertTriangle,
-      value: highPriority.length,
-      label: 'Clients Require Attention',
-      note: 'Time-sensitive situations',
-      tone: 'high',
-    },
-    {
-      icon: BellOff,
-      value: rm.lowRelevanceAlertsSuppressed,
-      label: 'Low-Relevance Alerts Suppressed',
-      note: 'Noise filtered on your behalf',
-      tone: 'muted',
-    },
+    { icon: Users, value: rm.clientsMonitored ?? enriched.length, label: 'Clients Monitored', note: 'Across your book' },
+    { icon: AlertTriangle, value: attention.length, label: 'Clients Requiring Attention', note: 'High-priority situations', tone: 'high' },
+    { icon: Eye, value: monitor.length, label: 'Monitor / Watch', note: 'Developing, not urgent', tone: 'warn' },
+    { icon: CircleCheck, value: clear.length, label: 'No Immediate Action', note: 'Stable for now', tone: 'muted' },
   ]
 
   return (
     <div>
       <PageHeader
-        eyebrow="Tuesday, 1 September 2026"
+        eyebrow="Relationship Manager desk"
         title={`Good morning, ${rm.name.split(' ')[0]}`}
-        subtitle="Here is what requires your attention today."
+        subtitle="Here is what requires your attention today, ordered by relevance to each client."
       />
 
       {/* KPI cards */}
@@ -96,103 +81,74 @@ export default function Overview() {
         ))}
       </div>
 
-      {/* Market strip — deliberately understated */}
-      <Card style={{ marginBottom: 28 }}>
-        <div className="card-head">
-          <h3>Market context</h3>
-          <span className="muted" style={{ fontSize: 12.5 }}>
-            Shown only to explain client relevance
-          </span>
+      {/* Clients requiring attention */}
+      <div className="row between" style={{ marginBottom: 16 }}>
+        <div>
+          <h3 style={{ fontSize: 18 }} className="serif">Clients requiring attention</h3>
+          <p className="muted" style={{ margin: '4px 0 0', fontSize: 13.5 }}>
+            Ranked by relevance to the client, not by how loud the market is.
+          </p>
         </div>
-        <div className="market-strip">
-          {market.map((m) => (
-            <div className="market-item" key={m.id}>
-              <div className="m-label">{m.label}</div>
-              <div className="m-value">{m.value}</div>
-              <div className={`m-change ${m.direction === 'up' ? 'pos' : 'neg'}`}>
-                {m.direction === 'up' ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-                {Math.abs(m.changePct)}%
-              </div>
-            </div>
+        <Link className="link-gold" to="/clients">
+          All clients <ArrowRight size={14} />
+        </Link>
+      </div>
+
+      {rankedAttention.length === 0 ? (
+        <Card className="empty">No clients currently require attention.</Card>
+      ) : (
+        <div className="grid cols-2" style={{ gap: 18, marginBottom: 28 }}>
+          {rankedAttention.map((e, i) => (
+            <PriorityClientCard
+              key={e.client.id}
+              client={e.client}
+              intelligence={e.intel}
+              rank={i + 1}
+            />
           ))}
         </div>
-      </Card>
+      )}
 
-      <div className="grid" style={{ gridTemplateColumns: '1.7fr 1fr', alignItems: 'start' }}>
-        {/* Priority Intelligence */}
-        <div>
-          <div className="row between" style={{ marginBottom: 16 }}>
-            <div>
-              <h3 style={{ fontSize: 18 }} className="serif">Priority Intelligence</h3>
-              <p className="muted" style={{ margin: '4px 0 0', fontSize: 13.5 }}>
-                Ranked by relevance to the client, not by how loud the market is.
-              </p>
-            </div>
-            <Link className="link-gold" to="/intelligence">
-              All intelligence <ArrowRight size={14} />
-            </Link>
+      {/* Monitor list — lighter treatment */}
+      {monitor.length > 0 && (
+        <Card style={{ marginBottom: 28 }}>
+          <div className="card-head">
+            <h3>Monitor / watch</h3>
+            <span className="muted" style={{ fontSize: 12.5 }}>{monitor.length} clients</span>
           </div>
-          <div className="grid" style={{ gap: 18 }}>
-            {prioritySignals.slice(0, 4).map((s) => (
-              <SignalCard key={s.id} signal={s} />
+          <div>
+            {monitor.map((e) => (
+              <Link
+                to={`/clients/${e.client.id}`}
+                key={e.client.id}
+                className="signal-compact"
+                style={{ display: 'block' }}
+              >
+                <div className="row between">
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{e.client.name}</span>
+                  <span className="badge badge-medium">Monitor</span>
+                </div>
+                <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
+                  {e.client.id} · {e.client.riskProfile} · {e.client.domicile}
+                </div>
+              </Link>
             ))}
           </div>
-        </div>
-
-        {/* Right rail: upcoming + narratives */}
-        <div className="grid" style={{ gap: 20 }}>
-          <Card>
-            <div className="card-head">
-              <h3>Upcoming meetings</h3>
-              <Link className="link-gold" to="/briefings">Briefings</Link>
-            </div>
-            <div>
-              {upcoming.slice(0, 4).map((b) => (
-                <Link
-                  to="/briefings"
-                  key={b.id}
-                  className="signal-compact"
-                  style={{ display: 'block' }}
-                >
-                  <div className="row between">
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>{b.clientName}</span>
-                    <span className={`badge badge-${b.status === 'Ready' ? 'low' : 'medium'}`}>
-                      {b.status}
-                    </span>
-                  </div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
-                    <CalendarClock size={13} style={{ verticalAlign: -2, marginRight: 5 }} />
-                    {formatDateTime(b.scheduledFor)}
-                  </div>
-                  <div className="soft" style={{ fontSize: 12.5, marginTop: 2 }}>{b.meetingType}</div>
-                </Link>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="card-pad">
-            <div className="eyebrow" style={{ marginBottom: 12 }}>Reading the market</div>
-            <div className="grid" style={{ gap: 16 }}>
-              {narratives.map((n) => (
-                <div key={n.id}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{n.title}</div>
-                  <p className="soft" style={{ fontSize: 13, margin: '5px 0 0' }}>{n.body}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>
+        </Card>
+      )}
     </div>
   )
 }
 
-// Higher relevance first; fall back to priority ordering.
-function byRelevance(a, b) {
-  const ar = a.relevanceScore ?? rankToScore(a.priority)
-  const br = b.relevanceScore ?? rankToScore(b.priority)
-  return br - ar
-}
-function rankToScore(p) {
-  return { high: 80, medium: 55, low: 35 }[p] ?? 0
+// Derive a compact card summary from a full intelligence object.
+// Relevance and priority are read straight from the engine output — never
+// inferred from AI confidence.
+function summariseIntel(intel) {
+  const topSignal = intel.signals?.[0]
+  return {
+    priority: intel.priority,
+    priorityScore: intel.priorityScore,
+    relevanceScore: intel.relevanceScore,
+    topSignalTitle: topSignal?.title || null,
+  }
 }

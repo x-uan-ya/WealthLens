@@ -8,8 +8,6 @@ import {
   FileText,
   Settings,
 } from 'lucide-react'
-import { formatChf } from '../utils/format.js'
-
 const primaryNav = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
   { to: '/clients', label: 'Clients', icon: Users },
@@ -64,11 +62,11 @@ export default function Sidebar({ rm, open, onNavigate }) {
 
       <div className="sidebar-foot">
         <div className="nav-label" style={{ padding: '0 0 4px' }}>
-          Book under management
+          Clients monitored
         </div>
-        <div className="aum">{formatChf(rm?.aumChf)}</div>
+        <div className="aum">{rm?.clientsMonitored ?? rm?.clientsManaged ?? '—'}</div>
         <div style={{ fontSize: 12, color: 'rgba(205,216,221,0.55)', marginTop: 2 }}>
-          {rm?.clientsManaged} client relationships
+          {rm?.team || 'Relationship management'}
         </div>
       </div>
     </aside>
