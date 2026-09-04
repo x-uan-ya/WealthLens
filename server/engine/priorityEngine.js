@@ -16,6 +16,21 @@ import {
   getHoldingsAtSnapshot,
   LATEST_SNAPSHOT,
 } from './snapshotEngine.js'
+import { getLauChiMingIntelligence } from './lauIntelligence.js'
+import { getAbdullahIntelligence } from './abdullahIntelligence.js'
+import { getMargartheIntelligence } from './margaretheIntelligence.js'
+
+// The three presentation clients receive deep, bespoke analysis. Their
+// authoritative priority score + factors come from their dedicated modules,
+// NOT the basic scorer, so the dashboard ranking is consistent with the
+// detail pages. All other clients use the transparent basic scorer.
+// (Safe: the deep modules import only snapshotEngine + dataLoader, never this
+// file, so there is no circular dependency.)
+const DEEP_CLIENT_SCORERS = {
+  'CL-0014': getLauChiMingIntelligence,
+  'CL-0019': getAbdullahIntelligence,
+  'CL-0003': getMargartheIntelligence,
+}
 
 // ─── Scoring Weights ───────────────────────────────────────────────────────────
 
@@ -250,10 +265,62 @@ function scoreClient(clientId, snapshotDate = LATEST_SNAPSHOT) {
 
 // ─── Score All Clients ─────────────────────────────────────────────────────────
 
+/**
+ * Returns the authoritative score for a client: deep-module score for the
+ * three presentation clients, basic score for everyone else. Output shape is
+ * identical for both so the ranking/frontend can treat them uniformly.
+ */
+function scoreClientAuthoritative(clientId, snapshotDate = LATEST_SNAPSHOT) {
+  const deepScorer = DEEP_CLIENT_SCORERS[clientId]
+  if (!deepScorer) return scoreClient(clientId, snapshotDate)
+
+  const store = loadAllData()
+  const client = store.clientById[clientId]
+  const raw = deepScorer(snapshotDate)
+  const factors = raw.priorityFactors || {}
+
+  // Human-readable notes: prefer the deep signals' titles, fall back to factor names.
+  const factorNotes = {}
+  for (const key of Object.keys(factors)) {
+    factorNotes[key] = humaniseFactor(key)
+  }
+  const whyThisClient = (raw.signals || [])
+    .slice()
+    .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))
+    .map(s => `[${(s.severity || '').toUpperCase()}] ${s.title}`)
+
+  return {
+    clientId,
+    clientName: raw.clientName || client?.full_name,
+    segment: client?.segment,
+    snapshotDate,
+    analysisDepth: 'deep',
+    priorityScore: Math.min(100, raw.priorityScore || 0),
+    priority: raw.priority,
+    scoreComponents: factors,
+    factorNotes,
+    topFactor: Object.entries(factors).sort((a, b) => b[1] - a[1])[0]?.[0] || null,
+    whyThisClient: whyThisClient.length ? whyThisClient : Object.entries(factors)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `[${v}pts] ${humaniseFactor(k)}`),
+  }
+}
+
+function humaniseFactor(key) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, c => c.toUpperCase())
+    .trim()
+}
+
+function severityRank(sev) {
+  return { high: 3, medium: 2, low: 1 }[(sev || '').toLowerCase()] ?? 0
+}
+
 export function scoreAllClients(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const scores = store.raw.clients
-    .map(c => scoreClient(c.client_id, snapshotDate))
+    .map(c => scoreClientAuthoritative(c.client_id, snapshotDate))
     .filter(Boolean)
     .sort((a, b) => b.priorityScore - a.priorityScore)
 
@@ -269,4 +336,4 @@ export function scoreAllClients(snapshotDate = LATEST_SNAPSHOT) {
   }
 }
 
-export { scoreClient }
+export { scoreClient, scoreClientAuthoritative }

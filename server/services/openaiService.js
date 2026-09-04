@@ -15,9 +15,22 @@
 
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy singleton. The client is created only when a brief is actually
+// generated — NOT at import time. This keeps the whole server (all the
+// deterministic data / intelligence / priority / event endpoints) fully
+// operational without an API key. The AI endpoints guard with a 503 when the
+// key is absent, so nothing else is blocked by a missing credential.
+let _openai = null
+
+function getOpenAI() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY not configured')
+  }
+  if (!_openai) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  }
+  return _openai
+}
 
 // ─── System Prompt ─────────────────────────────────────────────────────────────
 
@@ -90,7 +103,7 @@ export async function generateRMBrief(briefInput) {
     uncertainties,
   })
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -194,7 +207,7 @@ function buildUserMessage({
  * Takes raw text input and returns text output.
  */
 export async function generateRMBriefLegacy(input) {
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       {
