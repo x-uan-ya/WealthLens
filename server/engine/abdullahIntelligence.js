@@ -10,7 +10,7 @@
  *   - AI must not calculate; all figures here are code-computed.
  */
 
-import { loadAllData } from './dataLoader.js'
+import { loadAllData, getChfRate } from './dataLoader.js'
 import {
   getClientAggregatedPortfolio,
   getHoldingsAtSnapshot,
@@ -259,7 +259,9 @@ export function buildHormuzScenario(snapshotDate = LATEST_SNAPSHOT) {
     h.instrument_id === 'INS-0020' && h.snapshot_date === '2025-12-31' && h.portfolio_id === 'PF-0019A'
   )
 
-  // Compute observed losses at peak disruption (Feb 27 vs Dec 31)
+  // Compute observed losses at peak disruption (Feb 27 vs Dec 31).
+  // Difference the pre-computed market_value_chf fields directly — the dataset
+  // supplies CHF for every snapshot holding, so no FX conversion is needed.
   const noteImpactUsd = noteAtFeb27 && noteAtDec31
     ? (noteAtFeb27.market_value_local - noteAtDec31.market_value_local)
     : null
@@ -267,9 +269,12 @@ export function buildHormuzScenario(snapshotDate = LATEST_SNAPSHOT) {
     ? (gulfFundFeb27.market_value_local - gulfFundDec31.market_value_local)
     : null
 
-  // Total observed impact in CHF
-  const noteImpactChf = noteImpactUsd ? Math.round(noteImpactUsd * 0.93) : null
-  const gulfFundImpactChf = gulfFundImpactUsd ? Math.round(gulfFundImpactUsd * 0.93) : null
+  const noteImpactChf = noteAtFeb27 && noteAtDec31
+    ? Math.round(noteAtFeb27.market_value_chf - noteAtDec31.market_value_chf)
+    : null
+  const gulfFundImpactChf = gulfFundFeb27 && gulfFundDec31
+    ? Math.round(gulfFundFeb27.market_value_chf - gulfFundDec31.market_value_chf)
+    : null
   const totalObservedImpactChf = (noteImpactChf || 0) + (gulfFundImpactChf || 0)
 
   // For a STRESS SCENARIO (a re-escalation), apply assumptions

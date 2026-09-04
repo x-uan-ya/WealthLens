@@ -234,6 +234,48 @@ function buildNormalisedStore(raw) {
   }
 }
 
+// ─── FX Rates (dataset-supported) ───────────────────────────────────────────────
+
+/**
+ * Returns a currency -> CHF conversion rate derived from market_context.csv
+ * FX records at (or before) the given snapshot date. No hard-coded rates.
+ *
+ * The dataset supplies HKDUSD, USDCHF, EURCHF, EURUSD as FX metric rows.
+ * HKD->CHF is derived as HKDUSD * USDCHF. Falls back to null if a rate is not
+ * present in the dataset (caller should then prefer a pre-computed *_chf field).
+ */
+export function getChfRate(currency, snapshotDate = '2026-08-26') {
+  if (!currency || currency === 'CHF') return 1
+  const store = loadAllData()
+
+  const fxAt = (metricName) => {
+    const rows = store.raw.marketContext.filter(
+      (m) => m.asset_class === 'FX' && m.metric_name === metricName && m.snapshot_date <= snapshotDate
+    )
+    if (rows.length === 0) return null
+    // Latest on/before the snapshot date.
+    rows.sort((a, b) => (a.snapshot_date < b.snapshot_date ? 1 : -1))
+    const v = Number(rows[0].metric_value)
+    return isNaN(v) ? null : v
+  }
+
+  const usdChf = fxAt('USDCHF')
+  const eurChf = fxAt('EURCHF')
+
+  switch (currency) {
+    case 'USD':
+      return usdChf
+    case 'EUR':
+      return eurChf
+    case 'HKD': {
+      const hkdUsd = fxAt('HKDUSD')
+      return hkdUsd != null && usdChf != null ? hkdUsd * usdChf : null
+    }
+    default:
+      return null
+  }
+}
+
 // ─── Validation ────────────────────────────────────────────────────────────────
 
 /**

@@ -10,7 +10,7 @@
  *   - DO NOT hard-code conclusions. All values are derived from holdings, credit facilities, and cash needs.
  */
 
-import { loadAllData } from './dataLoader.js'
+import { loadAllData, getChfRate } from './dataLoader.js'
 import {
   getClientAggregatedPortfolio,
   getHoldingsAtSnapshot,
@@ -190,10 +190,10 @@ export function calculateCreditFacilityStatus() {
     })
   }
 
-  // Aggregate
+  // Aggregate. Credit facilities do not carry a pre-computed CHF field, so we
+  // convert using the dataset FX rates from market_context.csv (HKDUSD*USDCHF).
   const totalDrawnChf = results.reduce((sum, f) => {
-    // Rough CHF conversion for HKD facilities: use ~0.12 rate (from market_context.csv)
-    const rate = f.currency === 'HKD' ? 0.12 : 1.0
+    const rate = getChfRate(f.currency, LATEST_SNAPSHOT) ?? 1
     return sum + (f.drawnAmount || 0) * rate
   }, 0)
 
@@ -245,7 +245,9 @@ export function calculateCashRequirement(snapshotDate = LATEST_SNAPSHOT) {
   // Available Lombard headroom from CF-0014-001
   const lombard = store.creditFacilitiesByClient[CLIENT_ID]?.find(cf => cf.facility_id === 'CF-0014-001')
   const lombardHeadroomHkd = lombard ? lombard.available_amount : 0
-  const lombardHeadroomChf = Math.round(lombardHeadroomHkd * 0.12) // HKD → CHF
+  // Dataset-supported HKD -> CHF from market_context.csv (no hard-coded rate).
+  const hkdChfRate = getChfRate('HKD', snapshotDate) ?? 0
+  const lombardHeadroomChf = Math.round(lombardHeadroomHkd * hkdChfRate)
 
   const cashNeadResults = cashNeeds.map(cn => {
     // Days until due
@@ -296,16 +298,26 @@ export function calculateCashRequirement(snapshotDate = LATEST_SNAPSHOT) {
     bondHoldings,
     cashNeeds: cashNeadResults,
     primaryCashNeed: primaryNeed || null,
-    evidenceSummary: {
-      claim: 'Lau Chi Ming Nov 2026 HKD 60m cash requirement coverage',
-      cashAvailableHkd: Math.round(cashChf / 0.12),
-      cashAvailableChf: Math.round(cashChf),
-      needHkd: 60000000,
-      needChf: 7200000,
-      shortfallChf: Math.max(0, 7200000 - cashChf),
-      lombardCanBridge: (cashChf + lombardHeadroomChf) >= 7200000,
-      source: 'holdings.csv + credit_facilities.csv + planned_cash_needs.csv',
-    },
+    evidenceSummary: buildCashEvidenceSummary(primaryNeed, cashChf, lombardHeadroomChf, hkdChfRate),
+  }
+}
+
+// Builds the headline cash-coverage evidence from the actual PCN-0014-001
+// record — need amounts come from planned_cash_needs.csv (local + pre-computed
+// CHF), never from a hard-coded literal.
+function buildCashEvidenceSummary(primaryNeed, cashChf, lombardHeadroomChf, hkdChfRate) {
+  const needChf = primaryNeed?.amountChf ?? 0
+  const needLocal = primaryNeed?.amountLocal ?? 0
+  return {
+    claim: `Lau Chi Ming ${primaryNeed?.dueDate || 'Nov 2026'} ${needLocal?.toLocaleString()} ${primaryNeed?.currency || 'HKD'} cash requirement coverage`,
+    cashAvailableHkd: hkdChfRate ? Math.round(cashChf / hkdChfRate) : null,
+    cashAvailableChf: Math.round(cashChf),
+    needLocal,
+    needCurrency: primaryNeed?.currency || 'HKD',
+    needChf,
+    shortfallChf: Math.max(0, needChf - cashChf),
+    lombardCanBridge: (cashChf + lombardHeadroomChf) >= needChf,
+    source: 'holdings.csv + credit_facilities.csv + planned_cash_needs.csv',
   }
 }
 
@@ -454,7 +466,7 @@ export function getLauChiMingIntelligence(snapshotDate = LATEST_SNAPSHOT) {
         underlyingExposures: autocallable.underlyingExposures,
       },
       relevanceFactors: [
-        'Maturity coincides with inheritance tax / cash need window',
+        'Maturity coincides with the Nov/Dec 2026 property-settlement cash-need window',
         'If it does not autocall, proceeds returned at maturity with potential mark-to-market loss',
         'Underlying basket is directly correlated with property concentration',
       ],
