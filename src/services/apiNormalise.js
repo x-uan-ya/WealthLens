@@ -51,9 +51,9 @@ export function normaliseRm(rm, clientCount) {
   return {
     id: rm.rmId,
     name,
-    title: rm.title,
-    team: rm.team,
-    location: rm.location,
+    title: rm.title || rm.desk || 'Relationship Manager',
+    team: rm.team || rm.desk || null,
+    location: rm.location || null,
     initials,
     clientsMonitored: clientCount ?? 20,
     clientsManaged: clientCount ?? 20,
@@ -67,18 +67,25 @@ export function normaliseRm(rm, clientCount) {
 export function normaliseClient(c, priorityByClient = {}) {
   const id = c.clientId || c.id
   const pri = priorityByClient[id]
+  // Official schema: base_currency stands in for the old "domicile" descriptor
+  // (the official dataset has no domicile city/country columns).
+  const domicile = c.baseCurrency ? `${c.baseCurrency} base` : c.domicile || null
   return {
     id,
     clientId: id,
-    name: c.name || c.full_name || c.clientName,
+    name: c.name || c.clientName || c.full_name,
     riskProfile: c.riskProfile,
-    domicile: c.domicile,
-    segment: c.segment,
-    mandateType: c.mandateType,
-    aumChf: c.aumChf,
-    tier: c.tier,
-    // Neutral factual context line — not a fabricated narrative.
-    lifeStage: c.lifeStage || [c.segment, c.mandateType].filter(Boolean).join(' · ') || null,
+    domicile,
+    baseCurrency: c.baseCurrency,
+    wealthBand: c.wealthBand,
+    sourceOfWealth: c.sourceOfWealth,
+    // AUM is USD in the official dataset. Keep the historical `aumChf` key for
+    // components that read it, but the value is the official USD AUM.
+    aumUsd: c.aumUsd,
+    aumChf: c.aumUsd,
+    tier: c.wealthBand,
+    // Neutral factual context line — official life_stage when present.
+    lifeStage: c.lifeStage || [c.wealthBand, c.riskProfile].filter(Boolean).join(' · ') || null,
     priority: normalisePriority(pri?.priority),
     presentation: PRESENTATION_IDS.has(id),
   }
@@ -107,7 +114,7 @@ function formatMetricValue(key, v) {
   if (v == null) return '—'
   if (typeof v === 'number') {
     if (/pct$/i.test(key)) return `${v}%`
-    if (/chf|amount|value/i.test(key)) return new Intl.NumberFormat('en-CH').format(v)
+    if (/base|usd|chf|amount|value|drawn|lending|collateral|need|impact/i.test(key)) return new Intl.NumberFormat('en-US').format(v)
     return String(v)
   }
   return String(v)
@@ -170,12 +177,13 @@ export function normaliseSnapshotHistory(snapshotsResponse) {
     series.push({ label: `${cls} allocation`, unit: '%', values })
   }
 
-  // Total value series (CHF millions, 1 dp) — real supplied totals only.
-  const totals = history.map((h) =>
-    typeof h.totalChf === 'number' ? Math.round((h.totalChf / 1_000_000) * 10) / 10 : null
-  )
+  // Total value series (USD millions, 1 dp) — real supplied totals only.
+  const totals = history.map((h) => {
+    const t = typeof h.totalUsd === 'number' ? h.totalUsd : (typeof h.totalChf === 'number' ? h.totalChf : null)
+    return t != null ? Math.round((t / 1_000_000) * 10) / 10 : null
+  })
   if (totals.some((t) => t != null)) {
-    series.unshift({ label: 'Total portfolio value', unit: 'CHF m', values: totals })
+    series.unshift({ label: 'Total portfolio value', unit: 'USD m', values: totals })
   }
 
   return { dates, series }
@@ -191,26 +199,25 @@ export function normaliseScenario(sc) {
   const known = sc.knownData || {}
   const calc = sc.calculatedStressResult || {}
   const assumptions = sc.assumptions || {}
-  const chf = (n) => (typeof n === 'number' ? `CHF ${new Intl.NumberFormat('en-CH').format(n)}` : null)
+  const money = (n, ccy) => (typeof n === 'number' ? `${ccy || ''} ${new Intl.NumberFormat('en-US').format(n)}`.trim() : null)
+  const ccy = calc.baseCurrency || known.baseCurrency || 'USD'
 
-  // Affected exposures: explicit if supplied, else derive (Hormuz).
+  // Affected exposures: explicit if supplied, else derive.
   let affectedExposures = Array.isArray(sc.affectedExposures) ? sc.affectedExposures : null
   if (!affectedExposures) {
     affectedExposures = []
-    if (known.observedTotalImpactChf != null)
-      affectedExposures.push({ label: 'Observed impact (Feb 2026)', value: chf(known.observedTotalImpactChf) })
-    if (calc.currentPortfolioValueChf != null)
-      affectedExposures.push({ label: 'Current portfolio value', value: chf(calc.currentPortfolioValueChf) })
+    const cur = calc.currentPortfolioValueBase ?? known.portfolioValueBase
+    if (cur != null) affectedExposures.push({ label: 'Current portfolio value', value: money(cur, ccy) })
   }
 
-  // Portfolio implications: explicit if supplied, else derive (Hormuz).
+  // Portfolio implications: explicit if supplied, else derive.
   let portfolioImplications = Array.isArray(sc.portfolioImplications) ? sc.portfolioImplications : null
   if (!portfolioImplications) {
     portfolioImplications = []
-    if (calc.totalStressImpactChf != null)
-      portfolioImplications.push(`Modelled stress impact: ${chf(calc.totalStressImpactChf)} (${calc.portfolioStressImpactPct}% of portfolio).`)
-    if (calc.portfolioValueAfterStressChf != null)
-      portfolioImplications.push(`Portfolio value after modelled stress: ${chf(calc.portfolioValueAfterStressChf)}.`)
+    if (calc.totalStressImpactBase != null)
+      portfolioImplications.push(`Modelled stress impact: ${money(calc.totalStressImpactBase, ccy)} (${calc.portfolioStressImpactPct}% of portfolio).`)
+    if (calc.portfolioValueAfterStressBase != null)
+      portfolioImplications.push(`Portfolio value after modelled stress: ${money(calc.portfolioValueAfterStressBase, ccy)}.`)
   }
 
   // Assumptions: the object form { key: value } -> readable lines.

@@ -1,18 +1,17 @@
 /**
  * intelligenceEngine.js
  *
- * Phase 10: Frontend contract — getClientIntelligence(clientId)
+ * Frontend contract — getClientIntelligence(clientId) — OFFICIAL schema.
  *
- * Returns the full intelligence object conforming to the agreed schema:
+ * Returns:
  * {
- *   clientId, priority, priorityScore, priorityFactors,
+ *   clientId, clientName, priority, priorityScore, priorityFactors,
  *   signals: [{ id, type, severity, title, summary, verifiedMetrics,
  *               relevanceFactors, evidence, uncertainty }],
- *   snapshotHistory, rmContext, relevantEvents, scenarios, aiBrief
+ *   snapshotHistory, rmContext, relevantEvents, scenarios, aiBriefInput, detail
  * }
  *
- * Deep analysis: CL-0014, CL-0019, CL-0003
- * Basic analysis: all other clients via priorityEngine
+ * Deep analysis: CL-0014, CL-0019, CL-0003. Basic analysis: all other clients.
  */
 
 import { loadAllData } from './dataLoader.js'
@@ -25,25 +24,12 @@ import { getSnapshotHistory, getClientAggregatedPortfolio, LATEST_SNAPSHOT } fro
 
 // ─── Main Entry Point ──────────────────────────────────────────────────────────
 
-/**
- * Returns the full intelligence object for a client.
- * For primary clients (CL-0014, CL-0019, CL-0003): deep analysis.
- * For all other clients: basic priority scoring + snapshot + events.
- *
- * @param {string} clientId
- * @param {string} snapshotDate - defaults to LATEST_SNAPSHOT
- * @returns {object} Intelligence object conforming to frontend contract
- */
 export function getClientIntelligence(clientId, snapshotDate = LATEST_SNAPSHOT) {
   switch (clientId) {
-    case 'CL-0014':
-      return formatLauIntelligence(snapshotDate)
-    case 'CL-0019':
-      return formatAbdullahIntelligence(snapshotDate)
-    case 'CL-0003':
-      return formatMargartheIntelligence(snapshotDate)
-    default:
-      return formatBasicIntelligence(clientId, snapshotDate)
+    case 'CL-0014': return formatLauIntelligence(snapshotDate)
+    case 'CL-0019': return formatAbdullahIntelligence(snapshotDate)
+    case 'CL-0003': return formatMargartheIntelligence(snapshotDate)
+    default: return formatBasicIntelligence(clientId, snapshotDate)
   }
 }
 
@@ -51,10 +37,7 @@ export function getClientIntelligence(clientId, snapshotDate = LATEST_SNAPSHOT) 
 
 function formatLauIntelligence(snapshotDate) {
   const raw = getLauChiMingIntelligence(snapshotDate)
-  const eventContext = buildEventContextForAI('CL-0014', [
-    'EVT-2026-001', 'EVT-2026-006', 'EVT-2026-007', 'EVT-2026-010',
-    'EVT-2026-012', 'EVT-2026-014', 'EVT-2026-016', 'EVT-2026-020',
-  ])
+  const eventContext = buildEventContextForAI('CL-0014', ['EVT-012', 'EVT-013'])
 
   return {
     clientId: 'CL-0014',
@@ -68,17 +51,15 @@ function formatLauIntelligence(snapshotDate) {
       rmId: raw.rmId,
       rmName: raw.rmName,
       recentNotes: raw.rmNotes,
-      lastContactDate: raw.snapshotDate,
+      lastContactDate: raw.rmNotes?.[raw.rmNotes.length - 1]?.date || null,
     },
     relevantEvents: eventContext.events,
     scenarios: raw.scenario ? [raw.scenario] : [],
     aiBriefInput: buildAIBriefInput('CL-0014', raw, eventContext),
-    // Detailed calculation outputs for display
     detail: {
       propertyConcentration: raw.propertyConcentration,
       creditFacilityStatus: raw.creditFacilityStatus,
       cashRequirement: raw.cashRequirement,
-      structuredProducts: raw.structuredProducts,
       aggregatePortfolio: raw.aggregatePortfolio,
       mandate: raw.mandate,
     },
@@ -89,7 +70,7 @@ function formatLauIntelligence(snapshotDate) {
 
 function formatAbdullahIntelligence(snapshotDate) {
   const raw = getAbdullahIntelligence(snapshotDate)
-  const eventContext = buildEventContextForAI('CL-0019')
+  const eventContext = buildEventContextForAI('CL-0019', raw.hormuzScenario?.authoritativeEventIds || null)
 
   return {
     clientId: 'CL-0019',
@@ -103,9 +84,10 @@ function formatAbdullahIntelligence(snapshotDate) {
       rmId: raw.rmId,
       rmName: raw.rmName,
       recentNotes: raw.rmNotes,
+      lastContactDate: raw.rmNotes?.[raw.rmNotes.length - 1]?.date || null,
     },
     relevantEvents: raw.relevantEvents,
-    scenarios: [raw.hormuzScenario],
+    scenarios: raw.hormuzScenario ? [raw.hormuzScenario] : [],
     aiBriefInput: buildAIBriefInput('CL-0019', raw, eventContext),
     detail: {
       shippingEnergyExposure: raw.shippingEnergyExposure,
@@ -123,7 +105,7 @@ function formatAbdullahIntelligence(snapshotDate) {
 
 function formatMargartheIntelligence(snapshotDate) {
   const raw = getMargartheIntelligence(snapshotDate)
-  const eventContext = buildEventContextForAI('CL-0003', ['EVT-2026-008', 'EVT-2026-009'])
+  const eventContext = buildEventContextForAI('CL-0003', ['EVT-009', 'EVT-012'])
 
   return {
     clientId: 'CL-0003',
@@ -137,6 +119,7 @@ function formatMargartheIntelligence(snapshotDate) {
       rmId: raw.rmId,
       rmName: raw.rmName,
       recentNotes: raw.rmNotes,
+      lastContactDate: raw.rmNotes?.[raw.rmNotes.length - 1]?.date || null,
     },
     relevantEvents: raw.relevantEvents,
     scenarios: raw.scenario ? [raw.scenario] : [],
@@ -166,7 +149,6 @@ function formatBasicIntelligence(clientId, snapshotDate) {
   const rmNotes = store.rmNotesByClient[clientId] || []
   const cashNeeds = store.cashNeedsByClient[clientId] || []
 
-  // Basic signals from score components
   const signals = Object.entries(score.scoreComponents || {}).map(([factor, pts]) => ({
     id: `${clientId}-${factor}`,
     type: factor,
@@ -181,7 +163,7 @@ function formatBasicIntelligence(clientId, snapshotDate) {
 
   return {
     clientId,
-    clientName: client.full_name,
+    clientName: client.client_name,
     priority: score.priority,
     priorityScore: score.priorityScore,
     priorityFactors: score.scoreComponents,
@@ -191,14 +173,14 @@ function formatBasicIntelligence(clientId, snapshotDate) {
       recentNotes: rmNotes.map(n => ({
         noteId: n.note_id,
         date: n.note_date,
-        subject: n.subject,
-        type: n.note_type,
-        actionRequired: n.action_required,
+        channel: n.channel,
+        rmName: n.rm_name,
+        body: n.note,
       })),
     },
     relevantEvents,
     scenarios: [],
-    aiBriefInput: null,  // Not generated for basic clients
+    aiBriefInput: null,
     detail: {
       aggregatePortfolio,
       cashNeeds,
@@ -211,103 +193,91 @@ function formatBasicIntelligence(clientId, snapshotDate) {
 /**
  * Assembles the structured payload sent to the OpenAI backend.
  * AI receives verified facts — never raw portfolio calculations.
- *
- * GOVERNANCE:
- *   - verifiedMetrics: code-calculated numbers only
- *   - authoritativeEvents: only from event_log.csv
- *   - AI must not invent facts, calculate figures, or reference unverified events
  */
-function buildAIBriefInput(clientId, rawIntelligence, eventContext) {
+function buildAIBriefInput(clientId, raw, eventContext) {
   const store = loadAllData()
   const client = store.clientById[clientId]
-  const mandate = store.mandateByClient[clientId]
+  const scenario = raw.scenario || raw.hormuzScenario || null
 
   return {
     clientContext: {
       clientId,
-      clientName: client?.full_name,
-      domicile: client?.domicile_country,
-      segment: client?.segment,
+      clientName: client?.client_name,
+      baseCurrency: client?.base_currency,
+      age: client?.age,
+      wealthBand: client?.wealth_band,
+      lifeStage: client?.life_stage,
       riskProfile: client?.risk_profile,
-      investmentObjective: client?.investment_objective,
-      mandateType: client?.mandate_type,
+      objectives: client?.objectives,
       sourceOfWealth: client?.source_of_wealth,
-      businessSector: client?.business_sector,
-      relationshipSince: client?.relationship_since,
-      nextOfKinNote: client?.next_of_kin_note,
+      investmentHorizonYears: client?.investment_horizon_years,
+      liquidityNeeds: client?.liquidity_needs,
+      clientSince: client?.client_since,
     },
-    verifiedMetrics: extractVerifiedMetrics(clientId, rawIntelligence),
-    signals: (rawIntelligence.signals || []).map(s => ({
-      id: s.id,
-      type: s.type,
-      severity: s.severity,
-      title: s.title,
-      summary: s.summary,
-      verifiedMetrics: s.verifiedMetrics,
+    verifiedMetrics: extractVerifiedMetrics(clientId, raw),
+    signals: (raw.signals || []).map(s => ({
+      id: s.id, type: s.type, severity: s.severity, title: s.title, summary: s.summary, verifiedMetrics: s.verifiedMetrics,
     })),
-    evidence: (rawIntelligence.signals || []).flatMap(s => s.evidence || []),
-    rmNotes: (rawIntelligence.rmNotes || []).map(n => ({
-      noteId: n.noteId,
-      date: n.date,
-      subject: n.subject,
-      type: n.type,
-      relevantBody: n.body?.substring(0, 500),  // Truncate for prompt efficiency
-      tags: n.tags,
-      actionRequired: n.actionRequired,
+    evidence: (raw.signals || []).flatMap(s => s.evidence || []),
+    rmNotes: (raw.rmNotes || []).map(n => ({
+      noteId: n.noteId, date: n.date, channel: n.channel, rmName: n.rmName, body: n.body,
     })),
     authoritativeEvents: eventContext.events,
     authoritativeEventContextText: eventContext.contextText,
-    scenario: rawIntelligence.hormuzScenario || null,
-    uncertainties: collectUncertainties(rawIntelligence),
+    scenario,
+    uncertainties: collectUncertainties(raw),
   }
 }
 
 function extractVerifiedMetrics(clientId, raw) {
   if (clientId === 'CL-0014') {
+    const cf = raw.creditFacilityStatus?.facilities?.[0]
+    const need = raw.cashRequirement?.primaryCashNeed
     return {
-      totalPortfolioChf: raw.aggregatePortfolio?.totalChf,
+      portfolioValueBase: raw.propertyConcentration?.totalPortfolioBase,
+      baseCurrency: raw.propertyConcentration?.baseCurrency,
       propertyConcentrationPct: raw.propertyConcentration?.totalPropertyPct,
-      directPropertyPct: raw.propertyConcentration?.directPropertyPct,
-      structuredPropertyPct: raw.propertyConcentration?.structuredPropertyPct,
-      cashNeedHkd: 60000000,
-      cashNeedChf: 7200000,
-      cashNeedDueDate: '2026-11-30',
-      currentCashChf: raw.cashRequirement?.cashPositionChf,
-      lombardDrawnHkd: 142000000,
-      lombardLtvPct: 48.97,
-      criticalFacilityId: 'CF-0014-003',
-      criticalFacilityLtvPct: 77.42,
-      criticalFacilityMarginCallPct: 85,
-      criticalFacilityHeadroomPpts: 7.58,
-      autocallableMaturityDate: '2026-12-31',
+      facilityId: cf?.facilityId,
+      facilityLtvPct: cf?.ltvCurrentPct,
+      facilityMarginCallPct: cf?.marginCallLtvPct,
+      facilityHeadroomPpts: cf?.headroomToMarginCallPpts,
+      cashNeed: need?.amount,
+      cashNeedCurrency: need?.currency,
+      cashNeedDueFrom: need?.dueFrom,
+      cashNeedDueTo: need?.dueTo,
     }
   }
   if (clientId === 'CL-0019') {
+    const exp = raw.shippingEnergyExposure
     return {
-      totalPortfolioChf: raw.aggregatePortfolio?.totalChf,
-      shippingExposurePct: raw.shippingEnergyExposure?.shippingPct,
-      energyExposurePct: raw.shippingEnergyExposure?.energyPct,
-      combinedShippingEnergyPct: raw.shippingEnergyExposure?.combinedShippingEnergyPct,
-      statedDiversificationObjectiveDate: '2026-05-18',
-      businessConcentrationPct: 67.5,
-      shippingNoteCurrentChf: raw.detail?.shippingEnergyExposure?.shippingHoldings?.find(h => h.instrumentId === 'INS-0024')?.valueChf,
-      hormuzObservedImpactChf: raw.hormuzScenario?.knownData?.observedTotalImpactChf,
-      hormuzStressImpactChf: raw.hormuzScenario?.calculatedStressResult?.totalStressImpactChf,
+      portfolioValueBase: exp?.totalPortfolioBase,
+      baseCurrency: exp?.baseCurrency,
+      shippingPct: exp?.shippingPct,
+      energyPct: exp?.energyPct,
+      shippingEnergyNotePct: exp?.notePct,
+      combinedShippingEnergyPct: exp?.combinedShippingEnergyPct,
+      objectiveAlignment: raw.objectiveAlignment?.alignmentStatus,
+      hormuzStressImpactBase: raw.hormuzScenario?.calculatedStressResult?.totalStressImpactBase,
       hormuzStressImpactPct: raw.hormuzScenario?.calculatedStressResult?.portfolioStressImpactPct,
     }
   }
   if (clientId === 'CL-0003') {
+    const eq = raw.equityAnalysis
+    const tax = raw.cashCoverage?.find(cn => cn.needId === 'CN-004') || raw.cashCoverage?.[0]
     return {
-      totalPortfolioChf: raw.aggregatePortfolio?.totalChf,
-      effectiveEquityPct: raw.equityAnalysis?.effectiveEquityPct,
-      mandateEquityMax: 30,
-      equityBreachPpts: raw.equityAnalysis ? (raw.equityAnalysis.effectiveEquityPct - 30) : null,
-      deutscheBankWeightPct: raw.equityAnalysis?.deutscheBankWeightPct,
-      inheritanceTaxDec2026Eur: 4200000,
-      inheritanceTaxDec2026Chf: 4620000,
-      inheritanceTaxJun2027Eur: 3800000,
-      availableCashChf: raw.cashCoverage?.[0]?.availableCashChf,
-      age: 67,
+      portfolioValueBase: eq?.totalBase,
+      baseCurrency: eq?.baseCurrency,
+      equityPct: eq?.equityPct,
+      mandateEquityMax: eq?.mandateEquityMax,
+      equityBreachPpts: eq?.equityBreachPpts,
+      largestPositionName: eq?.largestPosition?.name,
+      largestPositionWeightPct: eq?.largestPosition?.weightPct,
+      singlePositionMaxPct: eq?.singlePositionMaxPct,
+      inheritanceTaxAmount: tax?.amount,
+      inheritanceTaxCurrency: tax?.currency,
+      inheritanceTaxDueFrom: tax?.dueFrom,
+      inheritanceTaxDueTo: tax?.dueTo,
+      inheritanceTaxCoveredByCash: tax?.coverableFromCash,
     }
   }
   return {}
@@ -316,13 +286,9 @@ function extractVerifiedMetrics(clientId, raw) {
 function collectUncertainties(raw) {
   const uncertainties = []
   for (const signal of raw.signals || []) {
-    if (signal.uncertainty) {
-      if (Array.isArray(signal.uncertainty)) {
-        uncertainties.push(...signal.uncertainty)
-      } else {
-        uncertainties.push(signal.uncertainty)
-      }
-    }
+    if (!signal.uncertainty) continue
+    if (Array.isArray(signal.uncertainty)) uncertainties.push(...signal.uncertainty)
+    else uncertainties.push(signal.uncertainty)
   }
   return [...new Set(uncertainties)]
 }

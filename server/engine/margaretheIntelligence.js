@@ -1,12 +1,23 @@
 /**
  * margaretheIntelligence.js
  *
- * Phase 5: Margarethe Voss-Brenner (CL-0003) intelligence engine.
+ * Margarethe Voss-Brenner (CL-0003) intelligence engine — OFFICIAL schema.
+ *
+ * Client: EUR base, "Conservative" risk profile, mandate CONS, portfolio PF-0005
+ * ("Inherited - Under Review"). Story (all deterministic from official data @2026-08-26):
+ *   - Equity is ~71.5% of the portfolio vs the CONS mandate maximum of 30% — a
+ *     large suitability breach. Fixed Income is only ~9.1% vs a 45% minimum.
+ *   - The single largest position, the Global Luxury & Consumer Brands Fund, is
+ *     ~26.1% of the portfolio vs the CONS single-position maximum of 10%.
+ *   - Confirmed EUR 3,400,000 German inheritance tax instalment (CN-004) due
+ *     2026-10-01 .. 2026-12-31.
+ *   - The client is a grieving, self-described conservative investor who inherited
+ *     a portfolio she does not understand and wants "something safe and boring"
+ *     (RM notes N-005 / N-006).
  *
  * GOVERNANCE:
- *   - All mandate-checking is rules-based, not AI-generated.
- *   - Evidence structure accompanies every signal.
- *   - No financial calculations via AI.
+ *   - Mandate checks are rules-based against mandates.csv, not AI-generated.
+ *   - Evidence accompanies every signal. AI never calculates.
  */
 
 import { loadAllData } from './dataLoader.js'
@@ -16,329 +27,195 @@ import {
   getSnapshotHistory,
   LATEST_SNAPSHOT,
 } from './snapshotEngine.js'
+import { getRelevantEvents } from './eventGrounding.js'
 
 const CLIENT_ID = 'CL-0003'
+const PORTFOLIO_ID = 'PF-0005'
 
-// ─── Mandate Compliance Checker ────────────────────────────────────────────────
+// ─── Mandate Compliance Checker (official per-asset-class rows) ─────────────────
 
 /**
- * Reusable mandate alignment function.
- * Takes actual allocation and mandate rules, returns compliance per asset class.
+ * Compares actual allocation (from getClientAggregatedPortfolio) against the
+ * mandate rows (one row per asset_class in mandates.csv).
+ * @param {Array} allocation [{ assetClass, weightPct }]
+ * @param {Array} mandateRows [{ asset_class, min_pct, target_pct, max_pct, max_single_position_pct }]
  */
-export function checkMandateAlignment(allocation, mandate) {
-  const checks = []
-
-  // Map asset class names to mandate fields
-  const rules = [
-    {
-      assetClass: 'Equity',
-      min: mandate.equity_min_pct,
-      max: mandate.equity_max_pct,
-      field: 'equity',
-    },
-    {
-      assetClass: 'Fixed Income',
-      min: mandate.fixed_income_min_pct,
-      max: mandate.fixed_income_max_pct,
-      field: 'fixed_income',
-    },
-    {
-      assetClass: 'Cash',
-      min: mandate.cash_min_pct,
-      max: mandate.cash_max_pct,
-      field: 'cash',
-    },
-    {
-      assetClass: 'Alternative',
-      min: mandate.alternatives_min_pct,
-      max: mandate.alternatives_max_pct,
-      field: 'alternatives',
-    },
-    {
-      assetClass: 'Multi-Asset',
-      min: null,
-      max: null,
-      field: 'multi_asset',
-      note: 'Treated as mixed — see fund-level equity proportion',
-    },
-    {
-      assetClass: 'Structured',
-      min: null,
-      max: null,
-      field: 'structured',
-      note: 'Not explicitly bounded in mandate — treat as equity or fixed income by underlying',
-    },
-  ]
-
-  for (const rule of rules) {
-    const actual = allocation.find(a =>
-      a.assetClass === rule.assetClass ||
-      a.assetClass.toLowerCase() === rule.assetClass.toLowerCase()
-    )
+export function checkMandateAlignment(allocation, mandateRows) {
+  const allocByClass = Object.fromEntries(allocation.map(a => [a.assetClass, a]))
+  return (mandateRows || []).map(rule => {
+    const actual = allocByClass[rule.asset_class]
     const actualPct = actual?.weightPct ?? 0
-
-    const withinRange = (rule.min === null || actualPct >= rule.min) &&
-                        (rule.max === null || actualPct <= rule.max)
-    const breach = (rule.min !== null && actualPct < rule.min)
-      ? 'BELOW_MIN' : (rule.max !== null && actualPct > rule.max)
-      ? 'ABOVE_MAX' : null
-
-    checks.push({
-      assetClass: rule.assetClass,
+    const belowMin = typeof rule.min_pct === 'number' && actualPct < rule.min_pct
+    const aboveMax = typeof rule.max_pct === 'number' && actualPct > rule.max_pct
+    const breach = aboveMax ? 'ABOVE_MAX' : belowMin ? 'BELOW_MIN' : null
+    return {
+      assetClass: rule.asset_class,
       actualPct,
-      mandateMin: rule.min,
-      mandateMax: rule.max,
+      mandateMin: rule.min_pct,
+      mandateTarget: rule.target_pct,
+      mandateMax: rule.max_pct,
       withinRange: breach === null,
       breach,
-      note: rule.note || null,
       severity: breach === 'ABOVE_MAX' ? 'breach' : breach === 'BELOW_MIN' ? 'warning' : 'ok',
-    })
-  }
-
-  return checks
+      deviationPpts: aboveMax
+        ? Math.round((actualPct - rule.max_pct) * 100) / 100
+        : belowMin ? Math.round((actualPct - rule.min_pct) * 100) / 100 : 0,
+    }
+  })
 }
 
-// ─── Voss-Brenner Specific Analysis ───────────────────────────────────────────
+// ─── Equity / Suitability Analysis ──────────────────────────────────────────────
 
-/**
- * Calculates effective equity exposure for Voss-Brenner.
- * Key complication: JB Conservative MA Fund (INS-0036) has internal equity allocation
- * that must be looked through to assess mandate compliance.
- */
-export function calculateEffectiveEquityExposure(snapshotDate = LATEST_SNAPSHOT) {
+export function calculateEquityExposure(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
-  const portfolios = store.portfoliosByClient[CLIENT_ID] || []
-  const evidence = []
+  const holdings = getHoldingsAtSnapshot(PORTFOLIO_ID, snapshotDate)
+  const pf = store.portfolioById[PORTFOLIO_ID]
+  const mandateRows = store.mandateRowsByCode[pf?.mandate_code] || []
+  const equityRule = mandateRows.find(r => r.asset_class === 'Equity')
+  const singleMax = mandateRows[0]?.max_single_position_pct ?? null
 
-  let totalChf = 0
-  let directEquityChf = 0
-  let maFundChf = 0
-  let fixedIncomeChf = 0
-  let cashChf = 0
-  const holdingDetails = []
+  let totalBase = 0
+  let equityBase = 0
+  const equityHoldings = []
+  let largest = null
 
-  // The MA fund's internal equity allocation per RM note (RMN-0003-002)
-  // RM noted it is now 28% equity (above the fund's 20% target due to ECB cuts)
-  const MA_FUND_EQUITY_PCT = 0.28  // ASSUMPTION documented by RM on 2026-07-28
-  const MA_FUND_EQUITY_PCT_TARGET = 0.20  // Fund's stated target
-
-  for (const pf of portfolios) {
-    const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
-    for (const h of holdings) {
-      if (typeof h.market_value_chf !== 'number') continue
-      totalChf += h.market_value_chf
-
-      const inst = store.instrumentById[h.instrument_id]
-      const isMAFund = h.instrument_id === 'INS-0036'
-      const isDirectEquity = h.asset_class === 'Equity'
-      const isFixedIncome = h.asset_class === 'Fixed Income'
-      const isCash = h.asset_class === 'Cash'
-
-      if (isDirectEquity && !isMAFund) {
-        directEquityChf += h.market_value_chf
-        holdingDetails.push({
-          holdingId: h.holding_id,
-          portfolioId: pf.portfolio_id,
-          name: inst?.name || h.instrument_id,
-          assetClass: 'Equity (Direct)',
-          valueChf: h.market_value_chf,
-          weightPct: h.weight_pct,
-          subClass: h.sub_class,
-        })
-      } else if (isMAFund) {
-        maFundChf += h.market_value_chf
-        holdingDetails.push({
-          holdingId: h.holding_id,
-          portfolioId: pf.portfolio_id,
-          name: inst?.name || h.instrument_id,
-          assetClass: 'Multi-Asset (contains equity)',
-          valueChf: h.market_value_chf,
-          weightPct: h.weight_pct,
-          internalEquityPct: MA_FUND_EQUITY_PCT * 100,
-          internalEquityChf: Math.round(h.market_value_chf * MA_FUND_EQUITY_PCT),
-          rmNoteSource: 'RMN-0003-002 (2026-07-28)',
-        })
-      } else if (isFixedIncome) {
-        fixedIncomeChf += h.market_value_chf
-      } else if (isCash) {
-        cashChf += h.market_value_chf
-      }
+  for (const h of holdings) {
+    const v = h.market_value_base
+    if (typeof v !== 'number') continue
+    totalBase += v
+    if ((h.asset_class || '') === 'Equity') {
+      equityBase += v
+      const row = { instrumentId: h.instrument_id, name: h.instrument_name, subClass: h.sub_asset_class, sector: h.sector, valueBase: Math.round(v), weightPct: h.weight_pct }
+      equityHoldings.push(row)
+    }
+    if (!largest || (h.weight_pct || 0) > (largest.weightPct || 0)) {
+      largest = { instrumentId: h.instrument_id, name: h.instrument_name, assetClass: h.asset_class, valueBase: Math.round(v), weightPct: h.weight_pct }
     }
   }
 
-  // Effective equity = direct equity + MA fund equity allocation
-  const maFundEquityChf = Math.round(maFundChf * MA_FUND_EQUITY_PCT)
-  const effectiveEquityChf = directEquityChf + maFundEquityChf
-  const effectiveEquityPct = totalChf > 0
-    ? Math.round((effectiveEquityChf / totalChf) * 1000) / 10
-    : 0
+  const pct = (n) => (totalBase > 0 ? Math.round((n / totalBase) * 10000) / 100 : 0)
+  const equityPct = pct(equityBase)
+  const equityMax = equityRule?.max_pct ?? 30
+  const equityBreachPpts = Math.round((equityPct - equityMax) * 100) / 100
 
-  // Direct equity only
-  const directEquityPct = totalChf > 0
-    ? Math.round((directEquityChf / totalChf) * 1000) / 10
-    : 0
+  const largestExceedsSingleMax = singleMax != null && largest && (largest.weightPct || 0) > singleMax
 
-  evidence.push({
-    claim: 'Effective equity exposure including MA fund look-through',
-    value: `Effective equity: ${effectiveEquityPct}% (Direct: ${directEquityPct}% + MA fund equity component: ${Math.round((maFundEquityChf / totalChf) * 1000) / 10}%)`,
-    source: 'holdings.csv + rm_notes.json (RMN-0003-002)',
-    recordIds: holdingDetails.map(h => h.holdingId),
+  const evidence = [{
+    claim: 'Equity allocation vs Conservative mandate maximum',
+    value: `Equity ${equityPct}% vs CONS max ${equityMax}% (breach ${equityBreachPpts > 0 ? '+' : ''}${equityBreachPpts} ppts)`,
+    source: 'holdings.csv + mandates.csv',
+    recordId: PORTFOLIO_ID,
     snapshot: snapshotDate,
-    calculation: `Direct equity CHF ${directEquityChf.toLocaleString()} + (MA fund CHF ${maFundChf.toLocaleString()} × ${MA_FUND_EQUITY_PCT * 100}%) = CHF ${effectiveEquityChf.toLocaleString()} / Total CHF ${totalChf.toLocaleString()}`,
-    supportingFields: ['market_value_chf', 'asset_class', 'instrument_id'],
-    assumption: `MA fund internal equity allocation = ${MA_FUND_EQUITY_PCT * 100}% (from RM note RMN-0003-002 dated 2026-07-28; fund target is ${MA_FUND_EQUITY_PCT_TARGET * 100}%)`,
-  })
-
-  // Deutsche Bank single stock concentration
-  const dbHolding = store.raw.holdings.find(h =>
-    h.instrument_id === 'INS-0026' && h.portfolio_id === 'PF-0003A'
-  )
-  const dbWeightPct = dbHolding ? dbHolding.weight_pct : 0
-  const mandateSingleIssuerMax = store.mandateByClient[CLIENT_ID]?.max_single_issuer_pct || 10
+    calculation: `Sum of Equity market_value_base / total market_value_base vs max_pct for CONS Equity`,
+    supportingFields: ['market_value_base', 'asset_class', 'max_pct'],
+  }]
 
   return {
     clientId: CLIENT_ID,
+    portfolioId: PORTFOLIO_ID,
     snapshotDate,
-    totalChf: Math.round(totalChf),
-    directEquityChf: Math.round(directEquityChf),
-    directEquityPct,
-    maFundChf: Math.round(maFundChf),
-    maFundEquityChf,
-    maFundEquityPct: Math.round((maFundChf / totalChf) * 1000) / 10,
-    effectiveEquityChf: Math.round(effectiveEquityChf),
-    effectiveEquityPct,
-    fixedIncomeChf: Math.round(fixedIncomeChf),
-    fixedIncomePct: totalChf > 0 ? Math.round((fixedIncomeChf / totalChf) * 1000) / 10 : 0,
-    cashChf: Math.round(cashChf),
-    cashPct: totalChf > 0 ? Math.round((cashChf / totalChf) * 1000) / 10 : 0,
-    holdingDetails,
-    deutscheBankWeightPct: dbWeightPct,
-    deutscheBankExceedsSingleIssuerMax: dbWeightPct > mandateSingleIssuerMax,
-    mandateSingleIssuerMax,
-    maFundDriftNote: `MA fund equity allocation (${MA_FUND_EQUITY_PCT * 100}%) exceeds fund target (${MA_FUND_EQUITY_TARGET * 100}%) — RM flagged 2026-07-28`,
+    baseCurrency: holdings[0]?.portfolio_ccy || 'EUR',
+    totalBase: Math.round(totalBase),
+    equityBase: Math.round(equityBase),
+    equityPct,
+    mandateEquityMax: equityMax,
+    equityBreachPpts,
+    equityHoldings: equityHoldings.sort((a, b) => b.weightPct - a.weightPct),
+    largestPosition: largest,
+    singlePositionMaxPct: singleMax,
+    largestExceedsSingleMax,
     evidence,
   }
 }
 
-// Constant to avoid circular reference
-const MA_FUND_EQUITY_TARGET = 0.20
-
-// ─── Cash Need Analysis ────────────────────────────────────────────────────────
+// ─── Cash Need Analysis ──────────────────────────────────────────────────────────
 
 export function calculateCashCoverage(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const cashNeeds = store.cashNeedsByClient[CLIENT_ID] || []
+  const holdings = getHoldingsAtSnapshot(PORTFOLIO_ID, snapshotDate)
 
-  // Liquid assets: cash deposits
-  const portfolios = store.portfoliosByClient[CLIENT_ID] || []
-  let totalCashChf = 0
+  let cashBase = 0
   const cashPositions = []
-
-  for (const pf of portfolios) {
-    const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
-    for (const h of holdings) {
-      if (h.asset_class === 'Cash' || h.sub_class === 'Cash Deposit') {
-        totalCashChf += h.market_value_chf || 0
-        cashPositions.push({
-          holdingId: h.holding_id,
-          portfolioId: pf.portfolio_id,
-          valueChf: h.market_value_chf,
-          currency: h.local_currency,
-        })
-      }
+  for (const h of holdings) {
+    if ((h.asset_class || '') === 'Cash and Equivalents') {
+      cashBase += h.market_value_base || 0
+      cashPositions.push({ name: h.instrument_name, valueBase: Math.round(h.market_value_base || 0), currency: h.instrument_ccy })
     }
   }
 
   return cashNeeds.map(cn => {
-    const dueDate = new Date(cn.due_date)
+    const dueDate = new Date(cn.due_from)
     const refDate = new Date(snapshotDate)
     const daysUntilDue = Math.round((dueDate - refDate) / (1000 * 60 * 60 * 24))
-
+    const amount = cn.amount || 0
+    // Cash need currency (EUR) matches portfolio base (EUR).
+    const coverable = cashBase >= amount
     return {
       needId: cn.need_id,
       description: cn.description,
-      amountLocal: cn.amount_local,
+      amount,
       currency: cn.currency,
-      amountChf: cn.amount_chf,
-      dueDate: cn.due_date,
+      dueFrom: cn.due_from,
+      dueTo: cn.due_to,
+      recurrence: cn.recurrence,
+      certainty: cn.certainty,
       daysUntilDue,
-      urgency: cn.urgency,
-      status: cn.status,
-      availableCashChf: Math.round(totalCashChf),
-      canCoverFromCash: totalCashChf >= (cn.amount_chf || 0),
-      shortfallChf: Math.max(0, (cn.amount_chf || 0) - totalCashChf),
+      availableCashBase: Math.round(cashBase),
+      coverableFromCash: coverable,
+      shortfallBase: Math.max(0, amount - cashBase),
       cashPositions,
       evidence: {
         claim: `Cash coverage for: ${cn.description}`,
-        value: `Need CHF ${cn.amount_chf?.toLocaleString()} | Available cash CHF ${Math.round(totalCashChf).toLocaleString()} | Covered: ${totalCashChf >= (cn.amount_chf || 0)}`,
+        value: `Need ${amount.toLocaleString()} ${cn.currency} due ${cn.due_from} .. ${cn.due_to} | available cash ${Math.round(cashBase).toLocaleString()} ${cn.currency} | covered: ${coverable}`,
         source: 'planned_cash_needs.csv + holdings.csv',
         recordId: cn.need_id,
         snapshot: snapshotDate,
-        calculation: `Sum of Cash holdings CHF ${Math.round(totalCashChf).toLocaleString()} vs need CHF ${cn.amount_chf?.toLocaleString()}`,
-        supportingFields: ['amount_chf', 'market_value_chf', 'due_date'],
+        calculation: `Sum of Cash and Equivalents market_value_base (${Math.round(cashBase).toLocaleString()}) vs need (${amount.toLocaleString()})`,
+        supportingFields: ['amount', 'currency', 'due_from', 'due_to', 'market_value_base'],
       },
     }
   })
 }
 
-// ─── Client-Specific Stress Scenario (deterministic, verified data only) ───────
+// ─── Suitability & Liquidity Stress Test (deterministic) ────────────────────────
 
-/**
- * Suitability & Liquidity Stress Test for Margarethe Voss-Brenner.
- *
- * Question: what happens to portfolio suitability and liquidity resilience if
- * the inherited concentrated Deutsche Bank single-stock weakens before her
- * confirmed inheritance-tax obligation?
- *
- * GOVERNANCE:
- *   - KNOWN values come from verified engine outputs (DB weight/value,
- *     mandate limit, effective equity, cash, inheritance-tax need).
- *   - The ONLY assumption is a single, clearly-labelled DB decline %.
- *   - CALCULATED values are pure arithmetic on the KNOWN + ASSUMPTION values.
- *   - No fabricated figures, no AI.
- */
-function buildMargaretheScenario({ equityAnalysis, cashCoverage, mandate, client }) {
-  const dbValueChf = equityAnalysis?.holdingDetails?.find(h => /deutsche bank/i.test(h.name))?.valueChf
-    ?? equityAnalysis?.directEquityChf
-    ?? null
-  const dbWeightPct = equityAnalysis?.deutscheBankWeightPct ?? null
-  const issuerMax = equityAnalysis?.mandateSingleIssuerMax ?? mandate?.max_single_issuer_pct ?? null
-  const portfolioChf = equityAnalysis?.totalChf ?? null
-  const tax = cashCoverage?.find(cn => cn.needId === 'PCN-0003-001') || cashCoverage?.[0] || null
-  const cashChf = tax?.availableCashChf ?? equityAnalysis?.cashChf ?? null
+function buildMargaretheScenario({ snapshotDate, equityAnalysis, cashCoverage, client }) {
+  const tax = cashCoverage.find(cn => cn.needId === 'CN-004') || cashCoverage[0] || null
+  const equityBase = equityAnalysis?.equityBase ?? null
+  const portfolioBase = equityAnalysis?.totalBase ?? null
+  const cashBase = tax?.availableCashBase ?? null
 
-  // ── ASSUMPTION: Deutsche Bank single-stock decline (single, explicit) ──
-  const ASSUMPTION_DB_DECLINE_PCT = 20
+  // ── ASSUMPTION: broad equity decline (single, explicit) ──
+  const ASSUMPTION_EQUITY_DECLINE_PCT = 20
 
-  // ── CALCULATED (arithmetic on verified inputs) ──
   let calc = null
-  if (typeof dbValueChf === 'number' && typeof portfolioChf === 'number' && portfolioChf > 0) {
-    const dbLossChf = Math.round(dbValueChf * (ASSUMPTION_DB_DECLINE_PCT / 100))
-    const portfolioAfterChf = portfolioChf - dbLossChf
-    const portfolioImpactPct = Math.round((dbLossChf / portfolioChf) * 10000) / 100
-    const dbWeightAfterPct = Math.round(((dbValueChf - dbLossChf) / portfolioAfterChf) * 10000) / 100
-    const taxNeed = tax?.amountChf ?? null
-    // Cash is not the DB position, so the tax buffer is unchanged by an equity
-    // decline; we surface the (unchanged) coverage explicitly for the RM.
-    const cashSurplusVsTaxChf = (cashChf != null && taxNeed != null) ? cashChf - taxNeed : null
+  if (typeof equityBase === 'number' && typeof portfolioBase === 'number' && portfolioBase > 0) {
+    const equityLoss = Math.round(equityBase * (ASSUMPTION_EQUITY_DECLINE_PCT / 100))
+    const portfolioAfter = portfolioBase - equityLoss
+    const portfolioImpactPct = Math.round((equityLoss / portfolioBase) * 10000) / 100
+    // Equity weight AFTER the decline (equity fell, other classes unchanged).
+    const equityAfter = equityBase - equityLoss
+    const equityWeightAfterPct = portfolioAfter > 0 ? Math.round((equityAfter / portfolioAfter) * 10000) / 100 : null
+    const taxNeed = tax?.amount ?? null
     calc = {
       _label: 'CALCULATED STRESS RESULT — arithmetic on verified holding/mandate values + stated assumption',
-      assumedDbDeclinePct: ASSUMPTION_DB_DECLINE_PCT,
-      dbValueBeforeChf: dbValueChf,
-      dbLossChf,
-      dbValueAfterChf: dbValueChf - dbLossChf,
-      portfolioBeforeChf: portfolioChf,
-      portfolioAfterChf,
-      portfolioImpactChf: -dbLossChf,
+      assumedEquityDeclinePct: ASSUMPTION_EQUITY_DECLINE_PCT,
+      equityBeforeBase: equityBase,
+      equityLossBase: equityLoss,
+      equityAfterBase: equityAfter,
+      portfolioBeforeBase: portfolioBase,
+      portfolioAfterBase: portfolioAfter,
+      portfolioImpactBase: -equityLoss,
       portfolioImpactPct: -portfolioImpactPct,
-      dbWeightBeforePct: dbWeightPct,
-      dbWeightAfterPct,
-      issuerMaxPct: issuerMax,
-      stillExceedsIssuerMax: typeof issuerMax === 'number' ? dbWeightAfterPct > issuerMax : null,
-      taxNeedChf: taxNeed,
-      cashAvailableChf: cashChf,
-      cashSurplusVsTaxChf,
-      taxStillCoveredByCash: (cashChf != null && taxNeed != null) ? cashChf >= taxNeed : null,
+      equityWeightBeforePct: equityAnalysis?.equityPct ?? null,
+      equityWeightAfterPct,
+      mandateEquityMaxPct: equityAnalysis?.mandateEquityMax ?? null,
+      stillExceedsEquityMax: typeof equityAnalysis?.mandateEquityMax === 'number' ? equityWeightAfterPct > equityAnalysis.mandateEquityMax : null,
+      taxNeedBase: taxNeed,
+      cashAvailableBase: cashBase,
+      taxStillCoveredByCash: (cashBase != null && taxNeed != null) ? cashBase >= taxNeed : null,
+      cashShortfallVsTaxBase: (cashBase != null && taxNeed != null) ? Math.max(0, taxNeed - cashBase) : null,
     }
   }
 
@@ -346,70 +223,77 @@ function buildMargaretheScenario({ equityAnalysis, cashCoverage, mandate, client
     clientId: CLIENT_ID,
     scenarioName: 'Suitability & Liquidity Stress Test',
     scenarioDescription:
-      'Deterministic stress test: how portfolio suitability (single-issuer concentration for a Conservative mandate) and liquidity resilience respond if the inherited Deutsche Bank position weakens before the confirmed inheritance-tax instalment. NOT a forecast.',
+      'Deterministic stress test: how the inherited, equity-heavy portfolio (already breaching the Conservative mandate) and the near-term inheritance-tax obligation respond to a broad equity decline. NOT a forecast.',
     authoritativeEventIds: [],
 
     knownData: {
       _label: 'KNOWN DATA — verified from holdings.csv, mandates.csv, planned_cash_needs.csv',
       riskProfile: client?.risk_profile ?? null,
-      deutscheBankWeightPct: dbWeightPct,
-      deutscheBankValueChf: dbValueChf,
-      mandateSingleIssuerMaxPct: issuerMax,
-      effectiveEquityPct: equityAnalysis?.effectiveEquityPct ?? null,
-      portfolioValueChf: portfolioChf,
-      inheritanceTaxNeedChf: tax?.amountChf ?? null,
-      inheritanceTaxNeedLocal: tax?.amountLocal ?? null,
+      equityWeightPct: equityAnalysis?.equityPct ?? null,
+      mandateEquityMaxPct: equityAnalysis?.mandateEquityMax ?? null,
+      equityBreachPpts: equityAnalysis?.equityBreachPpts ?? null,
+      largestPositionName: equityAnalysis?.largestPosition?.name ?? null,
+      largestPositionWeightPct: equityAnalysis?.largestPosition?.weightPct ?? null,
+      singlePositionMaxPct: equityAnalysis?.singlePositionMaxPct ?? null,
+      portfolioValueBase: portfolioBase,
+      inheritanceTaxNeedBase: tax?.amount ?? null,
       inheritanceTaxCurrency: tax?.currency ?? null,
-      inheritanceTaxDueDate: tax?.dueDate ?? null,
-      currentCashChf: cashChf,
+      inheritanceTaxDueFrom: tax?.dueFrom ?? null,
+      inheritanceTaxDueTo: tax?.dueTo ?? null,
+      currentCashBase: cashBase,
+      baseCurrency: equityAnalysis?.baseCurrency ?? 'EUR',
     },
 
     assumptions: {
       _label: 'ASSUMPTIONS — stated, not authoritative; used for this stress test only',
-      deutscheBankDeclinePct: -ASSUMPTION_DB_DECLINE_PCT,
+      equityDeclinePct: -ASSUMPTION_EQUITY_DECLINE_PCT,
       rationale:
-        'A single hypothetical decline is applied to the concentrated Deutsche Bank single-stock. Chosen for illustration; not derived from a forecast.',
+        'A single hypothetical broad-equity decline is applied to the (already over-weight) equity book. Chosen for illustration; not derived from a forecast.',
     },
 
     calculatedStressResult: calc,
 
     affectedExposures: [
-      dbWeightPct != null && issuerMax != null && {
-        label: 'Deutsche Bank single-issuer concentration',
-        value: `${dbWeightPct}% vs mandate max ${issuerMax}%`,
+      equityAnalysis?.equityPct != null && {
+        label: 'Equity allocation (Conservative mandate)',
+        value: `${equityAnalysis.equityPct}% vs max ${equityAnalysis.mandateEquityMax}%`,
       },
-      tax?.amountChf != null && {
+      equityAnalysis?.largestPosition && {
+        label: 'Largest single position',
+        value: `${equityAnalysis.largestPosition.name} ${equityAnalysis.largestPosition.weightPct}% (single max ${equityAnalysis.singlePositionMaxPct}%)`,
+      },
+      tax?.amount != null && {
         label: 'Confirmed inheritance-tax requirement',
-        value: `CHF ${tax.amountChf.toLocaleString()}${tax.dueDate ? ` due ${tax.dueDate}` : ''}`,
+        value: `${tax.amount.toLocaleString()} ${tax.currency}${tax.dueFrom ? ` due ${tax.dueFrom}` : ''}`,
       },
     ].filter(Boolean),
 
     portfolioImplications: [
-      calc && `A ${ASSUMPTION_DB_DECLINE_PCT}% decline in Deutsche Bank would reduce portfolio value by an estimated CHF ${calc.dbLossChf.toLocaleString()} (${calc.portfolioImpactPct}% of portfolio).`,
-      calc && calc.stillExceedsIssuerMax != null && (calc.stillExceedsIssuerMax
-        ? `Even after the decline, Deutsche Bank would remain above the ${calc.issuerMaxPct}% single-issuer limit (estimated ${calc.dbWeightAfterPct}%) — the suitability breach persists.`
-        : `After the decline, Deutsche Bank would fall to an estimated ${calc.dbWeightAfterPct}%, within the ${calc.issuerMaxPct}% single-issuer limit.`),
+      calc && `A ${ASSUMPTION_EQUITY_DECLINE_PCT}% equity decline would reduce portfolio value by an estimated ${calc.equityLossBase.toLocaleString()} ${calc.taxNeedBase != null ? tax.currency : ''} (${calc.portfolioImpactPct}% of portfolio).`,
+      calc && calc.stillExceedsEquityMax != null && (calc.stillExceedsEquityMax
+        ? `Even after the decline, equity would remain about ${calc.equityWeightAfterPct}% — still far above the ${calc.mandateEquityMaxPct}% Conservative ceiling. The suitability breach is structural, not market-driven.`
+        : `After the decline, equity would fall to about ${calc.equityWeightAfterPct}%, within the ${calc.mandateEquityMaxPct}% ceiling.`),
       calc && calc.taxStillCoveredByCash != null && (calc.taxStillCoveredByCash
-        ? `The confirmed inheritance-tax need (CHF ${calc.taxNeedChf?.toLocaleString()}) remains covered by cash (CHF ${calc.cashAvailableChf?.toLocaleString()}); the equity decline does not directly reduce the cash buffer.`
-        : `The inheritance-tax need may not be fully covered by cash after this scenario.`),
+        ? `The confirmed inheritance-tax need (${calc.taxNeedBase?.toLocaleString()} ${tax.currency}) is covered by cash (${calc.cashAvailableBase?.toLocaleString()} ${tax.currency}); the equity decline does not reduce the cash buffer directly.`
+        : `Cash (${calc.cashAvailableBase?.toLocaleString()} ${tax.currency}) does NOT cover the confirmed tax need (${calc.taxNeedBase?.toLocaleString()} ${tax.currency}) — shortfall ${calc.cashShortfallVsTaxBase?.toLocaleString()} ${tax.currency}. Meeting it in a down market may force selling depressed equity.`),
     ].filter(Boolean),
 
     objectiveImplications: [
-      'Client objective is to de-risk the inherited portfolio and secure stable income for a Conservative profile — a concentrated single-stock decline highlights why reducing issuer concentration ahead of the tax obligation is worth discussing.',
+      'The client\u2019s objective is to understand and de-risk the inherited portfolio and secure stable income for a Conservative profile. The scenario shows why reducing equity ahead of the tax date matters: a decline forces her to either sell into weakness or leave the tax underfunded.',
     ],
 
     uncertainty: {
       items: [
-        'The Deutsche Bank decline percentage is an illustrative assumption, not a forecast.',
-        'Single-stock moves can differ materially from broad-equity moves.',
-        'Final inheritance-tax amount is subject to German tax-authority confirmation.',
+        'The equity decline percentage is an illustrative assumption, not a forecast.',
+        'Sector funds (luxury, tech, industrials) can fall more or less than a broad index.',
+        'The final inheritance-tax amount is subject to German tax-authority confirmation.',
       ],
     },
 
     rmConsiderations: [
-      'Review the single-issuer concentration against the Conservative mandate limit.',
-      'Discuss whether reducing the inherited Deutsche Bank position ahead of the tax date improves suitability and liquidity resilience.',
-      'Confirm with the client the sentimental/other reasons for retaining the inherited position before any suitability action.',
+      'Review the equity over-weight and single-position concentration against the Conservative mandate before year end.',
+      'Assess whether de-risking now secures the inheritance-tax payment without selling into a future decline.',
+      'Handle sensitively: the client is grieving and asked that nothing be changed abruptly (RM note N-005).',
     ],
 
     evidence: [
@@ -418,7 +302,7 @@ function buildMargaretheScenario({ equityAnalysis, cashCoverage, mandate, client
         value: equityAnalysis.evidence[0].value,
         source: equityAnalysis.evidence[0].source,
         snapshot: equityAnalysis.evidence[0].snapshot,
-        record: (equityAnalysis.evidence[0].recordIds || []).join(', '),
+        record: equityAnalysis.evidence[0].recordId,
       },
       tax?.evidence && {
         label: tax.evidence.claim,
@@ -436,189 +320,168 @@ function buildMargaretheScenario({ equityAnalysis, cashCoverage, mandate, client
 export function getMargartheIntelligence(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const client = store.clientById[CLIENT_ID]
-  const mandate = store.mandateByClient[CLIENT_ID]
+  const pf = store.portfolioById[PORTFOLIO_ID]
+  const mandateRows = store.mandateRowsByCode[pf?.mandate_code] || []
   const rmNotes = store.rmNotesByClient[CLIENT_ID] || []
 
-  const equityAnalysis = calculateEffectiveEquityExposure(snapshotDate)
+  const equityAnalysis = calculateEquityExposure(snapshotDate)
   const aggregatePortfolio = getClientAggregatedPortfolio(CLIENT_ID, snapshotDate)
-  const mandateChecks = checkMandateAlignment(aggregatePortfolio.allocation, mandate)
+  const mandateChecks = checkMandateAlignment(aggregatePortfolio.allocation, mandateRows)
   const cashCoverage = calculateCashCoverage(snapshotDate)
   const snapshotHistory = getSnapshotHistory(CLIENT_ID)
 
-  // Relevant events (ECB, EUR, Germany)
-  const relevantEvents = store.raw.eventLog.filter(e =>
-    e.authoritative === true && (
-      e.affected_regions?.includes('Europe') ||
-      e.affected_regions?.includes('Germany') ||
-      e.affected_sectors?.includes('Fixed Income') ||
-      e.affected_sectors?.includes('EUR')
-    )
-  ).map(e => ({
-    eventId: e.event_id,
-    date: e.event_date,
-    title: e.event_title,
-    type: e.event_type,
-    severity: e.severity,
-    marketImpact: e.market_impact_note,
-  }))
+  const relevantEvents = getRelevantEvents(CLIENT_ID, ['Europe', 'Global'], ['Rates', 'Equity risk', 'credit'])
 
   const signals = []
 
-  // Signal 1: Equity allocation above Conservative mandate ceiling
-  const equityBreachPpts = equityAnalysis.effectiveEquityPct - (mandate?.equity_max_pct || 30)
-  if (equityBreachPpts > 0) {
+  // Signal 1: equity above Conservative mandate ceiling
+  if (equityAnalysis.equityBreachPpts > 0) {
     signals.push({
       id: 'MAR-SIG-001',
       type: 'mandate_breach',
-      severity: equityBreachPpts > 5 ? 'high' : 'medium',
-      title: 'Effective equity allocation exceeds Conservative mandate ceiling',
-      summary: `Effective equity (including MA fund look-through) is ${equityAnalysis.effectiveEquityPct}% vs mandate maximum of ${mandate?.equity_max_pct}%. Breach of ${Math.round(equityBreachPpts * 10) / 10} ppts.`,
+      severity: equityAnalysis.equityBreachPpts > 10 ? 'high' : 'medium',
+      title: 'Equity allocation far exceeds the Conservative mandate ceiling',
+      summary: `Equity is ${equityAnalysis.equityPct}% of the inherited portfolio vs the CONS maximum of ${equityAnalysis.mandateEquityMax}% — a breach of ${equityAnalysis.equityBreachPpts} ppts. The portfolio as transferred is not conservative.`,
       verifiedMetrics: {
-        effectiveEquityPct: equityAnalysis.effectiveEquityPct,
-        mandateEquityMax: mandate?.equity_max_pct,
-        breachPpts: Math.round(equityBreachPpts * 10) / 10,
-        directEquityPct: equityAnalysis.directEquityPct,
-        maFundEquityContributionPct: Math.round((equityAnalysis.maFundEquityChf / equityAnalysis.totalChf) * 1000) / 10,
+        equityPct: equityAnalysis.equityPct,
+        mandateEquityMax: equityAnalysis.mandateEquityMax,
+        breachPpts: equityAnalysis.equityBreachPpts,
+        equityBase: equityAnalysis.equityBase,
+        baseCurrency: equityAnalysis.baseCurrency,
       },
       relevanceFactors: [
-        'Client is Conservative profile — explicitly does not want additional risk',
-        'Mandate equity ceiling is 30%',
-        'MA fund equity drift (ECB rate cut induced) is the key driver',
-        'Client asked for written analysis at 2026-07-28 review',
+        'Client risk profile is Conservative and she asked for "something safe and boring" (RM note N-006)',
+        'CONS mandate caps equity at ' + equityAnalysis.mandateEquityMax + '%',
+        'The RM already recorded that the transferred portfolio is not conservative (RM note N-005)',
       ],
       evidence: equityAnalysis.evidence,
-      uncertainty: 'MA fund internal equity allocation is from RM note (2026-07-28), not independently verified against fund factsheet.',
+      uncertainty: null,
     })
   }
 
-  // Signal 2: Deutsche Bank single-stock concentration
-  if (equityAnalysis.deutscheBankExceedsSingleIssuerMax) {
+  // Signal 2: single-position concentration (Luxury fund)
+  if (equityAnalysis.largestExceedsSingleMax && equityAnalysis.largestPosition) {
+    const lp = equityAnalysis.largestPosition
     signals.push({
       id: 'MAR-SIG-002',
       type: 'concentration',
-      severity: 'medium',
-      title: 'Deutsche Bank single-stock exceeds mandate issuer limit',
-      summary: `Deutsche Bank (INS-0026) represents ${equityAnalysis.deutscheBankWeightPct}% of PF-0003A vs mandate single-issuer maximum of ${equityAnalysis.mandateSingleIssuerMax}%.`,
+      severity: 'high',
+      title: 'Single fund position exceeds the mandate single-position limit',
+      summary: `${lp.name} is ${lp.weightPct}% of the portfolio vs the CONS single-position maximum of ${equityAnalysis.singlePositionMaxPct}%.`,
       verifiedMetrics: {
-        instrumentId: 'INS-0026',
-        instrumentName: 'Deutsche Bank AG',
-        weightPct: equityAnalysis.deutscheBankWeightPct,
-        mandateSingleIssuerMax: equityAnalysis.mandateSingleIssuerMax,
-        exceedsByPpts: Math.round((equityAnalysis.deutscheBankWeightPct - equityAnalysis.mandateSingleIssuerMax) * 10) / 10,
+        instrumentId: lp.instrumentId,
+        instrumentName: lp.name,
+        weightPct: lp.weightPct,
+        singlePositionMaxPct: equityAnalysis.singlePositionMaxPct,
+        exceedsByPpts: Math.round((lp.weightPct - equityAnalysis.singlePositionMaxPct) * 100) / 100,
       },
       relevanceFactors: [
-        'Inherited position — client has sentimental attachment',
-        'Client acknowledged concentration concern at 2026-03-10 meeting',
-        'Conservative profile makes single-stock concentration particularly inconsistent',
+        'Inherited concentration the client does not understand (RM note N-005)',
+        'Single-position risk is especially inconsistent with a Conservative profile',
       ],
       evidence: [{
-        claim: 'Deutsche Bank single-stock concentration in PF-0003A',
-        value: `${equityAnalysis.deutscheBankWeightPct}% of PF-0003A vs ${equityAnalysis.mandateSingleIssuerMax}% mandate limit`,
+        claim: 'Single-position concentration vs mandate limit',
+        value: `${lp.name} ${lp.weightPct}% vs ${equityAnalysis.singlePositionMaxPct}% max`,
         source: 'holdings.csv + mandates.csv',
-        recordId: 'H-PF03A-003',
+        recordId: PORTFOLIO_ID,
         snapshot: snapshotDate,
-        calculation: `weight_pct from holdings.csv vs max_single_issuer_pct from mandates.csv`,
-        supportingFields: ['weight_pct', 'max_single_issuer_pct'],
+        calculation: 'weight_pct from holdings.csv vs max_single_position_pct from mandates.csv',
+        supportingFields: ['weight_pct', 'max_single_position_pct'],
       }],
-      uncertainty: 'Client sentimental attachment may affect willingness to reduce.',
+      uncertainty: null,
     })
   }
 
-  // Signal 3: Inheritance tax cash need
-  const inheritanceTax = cashCoverage.find(cn => cn.needId === 'PCN-0003-001')
-  if (inheritanceTax) {
+  // Signal 3: inheritance-tax cash need
+  const tax = cashCoverage.find(cn => cn.needId === 'CN-004')
+  if (tax) {
     signals.push({
       id: 'MAR-SIG-003',
       type: 'liquidity',
-      severity: inheritanceTax.daysUntilDue <= 90 ? 'high' : 'medium',
-      title: 'German inheritance tax payment due Dec 2026',
-      summary: `EUR 4.2m (CHF ${inheritanceTax.amountChf?.toLocaleString()}) inheritance tax instalment confirmed due ${inheritanceTax.dueDate}. ${inheritanceTax.daysUntilDue} days away. Cash ${inheritanceTax.canCoverFromCash ? 'covers' : 'does NOT cover'} this need.`,
+      severity: tax.daysUntilDue <= 120 ? 'high' : 'medium',
+      title: 'German inheritance tax instalment due before year end',
+      summary: `${tax.amount.toLocaleString()} ${tax.currency} (${tax.description}) is confirmed due ${tax.dueFrom} .. ${tax.dueTo}. Cash ${tax.coverableFromCash ? 'covers' : 'does NOT cover'} it (available ${tax.availableCashBase.toLocaleString()} ${tax.currency}).`,
       verifiedMetrics: {
-        amountEur: inheritanceTax.amountLocal,
-        amountChf: inheritanceTax.amountChf,
-        dueDate: inheritanceTax.dueDate,
-        daysUntilDue: inheritanceTax.daysUntilDue,
-        availableCashChf: inheritanceTax.availableCashChf,
-        canCoverFromCash: inheritanceTax.canCoverFromCash,
-        shortfallChf: inheritanceTax.shortfallChf,
+        amount: tax.amount,
+        currency: tax.currency,
+        dueFrom: tax.dueFrom,
+        dueTo: tax.dueTo,
+        daysUntilDue: tax.daysUntilDue,
+        availableCashBase: tax.availableCashBase,
+        coverableFromCash: tax.coverableFromCash,
+        shortfallBase: tax.shortfallBase,
       },
       relevanceFactors: [
-        'Confirmed with client and legal advisor (RMN-0003-001)',
-        'Second instalment EUR 3.8m due Jun 2027 — also flagged',
-        'Client does not want to sell bonds early',
+        'Confirmed and flagged in RM note N-006',
+        tax.coverableFromCash ? 'Currently coverable from cash' : 'Cash does not cover it — may require selling assets',
+        'Selling equity to fund it would crystallise risk in a portfolio already over-weight equity',
       ],
-      evidence: [inheritanceTax.evidence],
-      uncertainty: 'Tax amount subject to final German tax authority confirmation.',
+      evidence: [tax.evidence],
+      uncertainty: 'Final tax amount subject to German tax-authority confirmation.',
     })
   }
 
-  // Priority factors
-  const hasBreach = equityBreachPpts > 0
-  const hasCriticalCash = inheritanceTax?.daysUntilDue <= 90
   const priorityFactors = {
-    mandateSuitability: hasBreach ? 30 : 10,
-    liquidityUrgency: hasCriticalCash ? 25 : 15,
-    concentrationRisk: equityAnalysis.deutscheBankExceedsSingleIssuerMax ? 15 : 5,
-    lifeEventContext: 15,  // inheritance + conservative profile
+    mandateSuitability: equityAnalysis.equityBreachPpts > 10 ? 30 : equityAnalysis.equityBreachPpts > 0 ? 15 : 0,
+    concentrationRisk: equityAnalysis.largestExceedsSingleMax ? 20 : 5,
+    liquidityUrgency: tax && tax.daysUntilDue <= 120 ? 25 : 15,
+    lifeEventContext: 10, // recent inheritance, grieving conservative client
   }
   const priorityScore = Object.values(priorityFactors).reduce((s, v) => s + v, 0)
 
-  // Client-specific stress scenario (deterministic, verified data only).
-  const scenario = buildMargaretheScenario({
-    equityAnalysis,
-    cashCoverage,
-    mandate,
-    client,
-  })
+  const scenario = buildMargaretheScenario({ snapshotDate, equityAnalysis, cashCoverage, client })
 
   return {
     clientId: CLIENT_ID,
-    clientName: client?.full_name || 'Margarethe Voss-Brenner',
+    clientName: client?.client_name || 'Margarethe Voss-Brenner',
     rmId: store.rm.rm_id,
     rmName: store.rm.rm_name,
     snapshotDate,
-    priority: priorityScore >= 70 ? 'high' : 'medium',
+    priority: priorityScore >= 80 ? 'critical' : priorityScore >= 60 ? 'high' : 'medium',
     priorityScore,
     priorityFactors,
     scenario,
     mandate: {
-      mandateId: mandate?.mandate_id,
-      mandateType: mandate?.mandate_type,
-      mandateName: mandate?.mandate_name,
+      mandateCode: pf?.mandate_code,
+      mandateName: pf?.mandate_name,
       riskProfile: client?.risk_profile,
-      equityRange: `${mandate?.equity_min_pct}-${mandate?.equity_max_pct}%`,
-      fixedIncomeRange: `${mandate?.fixed_income_min_pct}-${mandate?.fixed_income_max_pct}%`,
-      singleIssuerMax: `${mandate?.max_single_issuer_pct}%`,
-      baseCurrency: mandate?.currency_base,
-      notes: mandate?.notes,
+      baseCurrency: pf?.base_currency,
+      equityBand: mandateBand(mandateRows, 'Equity'),
+      fixedIncomeBand: mandateBand(mandateRows, 'Fixed Income'),
+      singlePositionMaxPct: mandateRows[0]?.max_single_position_pct ?? null,
     },
     aggregatePortfolio,
     equityAnalysis,
     mandateChecks,
     cashCoverage,
-    signals: signals.sort((a, b) => {
-      const sev = { high: 3, medium: 2, low: 1 }
-      return (sev[b.severity] || 0) - (sev[a.severity] || 0)
-    }),
+    signals: sortBySeverity(signals),
     snapshotHistory,
     relevantEvents,
     lifeEventContext: {
       type: 'Inheritance settlement',
-      description: 'German industrial family estate — ongoing tax settlement (2 instalments remaining)',
-      age: 67,
-      beneficiaries: 'Two adult children (Michael and Anna)',
-      source: 'rm_notes.json / RMN-0003-003',
+      description: 'Recently inherited portfolio "under review"; confirmed German inheritance-tax instalment due before year end',
+      source: 'clients.csv objectives + rm_notes.json (N-005 / N-006) + planned_cash_needs.csv (CN-004)',
     },
-    rmNotes: rmNotes.map(n => ({
-      noteId: n.note_id,
-      date: n.note_date,
-      type: n.note_type,
-      subject: n.subject,
-      body: n.body,
-      tags: n.tags,
-      actionRequired: n.action_required,
-    })),
+    rmNotes: mapRmNotes(rmNotes),
   }
 }
 
-// (equityBreachPpts is computed inside getMargartheIntelligence scope)
+// ─── shared helpers ─────────────────────────────────────────────────────────────
+
+function mandateBand(rows, assetClass) {
+  const r = rows.find(x => x.asset_class === assetClass)
+  return r ? `${r.min_pct}-${r.max_pct}% (target ${r.target_pct}%)` : null
+}
+function sortBySeverity(signals) {
+  const sev = { high: 3, medium: 2, low: 1 }
+  return signals.slice().sort((a, b) => (sev[b.severity] || 0) - (sev[a.severity] || 0))
+}
+function mapRmNotes(notes) {
+  return (notes || []).map(n => ({
+    noteId: n.note_id,
+    date: n.note_date,
+    channel: n.channel,
+    rmName: n.rm_name,
+    body: n.note,
+  }))
+}

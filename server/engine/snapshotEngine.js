@@ -1,243 +1,167 @@
 /**
  * snapshotEngine.js
  *
- * Five-snapshot deterministic portfolio calculation engine.
- *
- * Supported snapshots:
- *   2025-12-31  | 2026-02-27  | 2026-03-31  | 2026-06-30  | 2026-08-26
+ * Five-snapshot deterministic portfolio calculation engine, on the OFFICIAL
+ * schema. All snapshots live in holdings.csv (one row per position per
+ * snapshot_date); there is no separate snapshot file.
  *
  * GOVERNANCE:
- *   - CALCULATE WITH CODE. No OpenAI for calculations.
- *   - All values returned are numbers computed from official dataset records.
- *   - Every output includes source record IDs for traceability.
+ *   - CALCULATE WITH CODE. No AI for calculations.
+ *   - Values are read from official records. USD (market_value_usd) is used for
+ *     cross-client aggregation; base ccy (market_value_base) for within-client.
+ *   - Every output can be traced to holding/portfolio records.
  */
 
-import { loadAllData } from './dataLoader.js'
+import { loadAllData, SNAPSHOT_DATES } from './dataLoader.js'
 
-export const SNAPSHOTS = [
-  '2025-12-31',
-  '2026-02-27',
-  '2026-03-31',
-  '2026-06-30',
-  '2026-08-26',
-]
-
+export const SNAPSHOTS = SNAPSHOT_DATES
 export const LATEST_SNAPSHOT = '2026-08-26'
+
+// Preferred value field for a holding. Cross-client work uses USD; within a
+// single client/portfolio the base ccy is exact and consistent.
+const MV = (h, ccy = 'usd') => (ccy === 'base' ? h.market_value_base : h.market_value_usd)
 
 // ─── Core Snapshot Functions ───────────────────────────────────────────────────
 
 /**
- * Returns holdings for a given portfolio at a given snapshot date.
- * Falls back to the latest (2026-08-26) data for snapshots without explicit records.
+ * Holdings for a portfolio at a snapshot, with instrument joined.
  */
 export function getHoldingsAtSnapshot(portfolioId, snapshotDate) {
   const store = loadAllData()
-
-  // For the latest snapshot, use the main holdings table
-  if (snapshotDate === LATEST_SNAPSHOT) {
-    const holdings = store.holdingsByPortfolio[portfolioId] || []
-    return holdings.map(h => ({
-      ...h,
-      instrument: store.instrumentById[h.instrument_id] || null,
-      _source: 'holdings.csv',
-    }))
-  }
-
-  // For historical snapshots, use the snapshot table
-  const snapshotMap = store.snapshotHoldingsByPortfolio[portfolioId] || {}
-  const holdings = snapshotMap[snapshotDate] || []
-
-  if (holdings.length === 0) {
-    // No snapshot data available — return empty with note
-    return []
-  }
-
-  return holdings.map(h => ({
+  const rows = store.holdingsByPortfolioSnapshot[portfolioId]?.[snapshotDate] || []
+  return rows.map(h => ({
     ...h,
     instrument: store.instrumentById[h.instrument_id] || null,
-    _source: 'holdings_snapshots.csv',
+    _source: 'holdings.csv',
   }))
 }
 
 /**
- * Calculates total portfolio value in CHF at a snapshot.
- * Uses sum of market_value_chf across all holdings.
+ * Total portfolio value at a snapshot (base ccy), with source records.
  */
-export function getPortfolioValueChf(portfolioId, snapshotDate) {
+export function getPortfolioValue(portfolioId, snapshotDate, ccy = 'base') {
   const holdings = getHoldingsAtSnapshot(portfolioId, snapshotDate)
-  if (holdings.length === 0) return { value: null, sourceRecords: [], note: 'No holdings data for this snapshot' }
-
+  if (holdings.length === 0) return { value: null, sourceRecords: [], note: 'No holdings for this snapshot' }
   let total = 0
   const sourceRecords = []
-
   for (const h of holdings) {
-    if (typeof h.market_value_chf === 'number') {
-      total += h.market_value_chf
-      sourceRecords.push(h.holding_id)
-    }
+    const v = MV(h, ccy)
+    if (typeof v === 'number') { total += v; sourceRecords.push(h.instrument_id) }
   }
-
-  return {
-    value: Math.round(total),
-    currency: 'CHF',
-    snapshotDate,
-    portfolioId,
-    holdingCount: holdings.length,
-    sourceRecords,
-  }
+  return { value: total, currency: ccy === 'base' ? holdings[0].portfolio_ccy : 'USD', snapshotDate, portfolioId, holdingCount: holdings.length, sourceRecords }
 }
 
 /**
- * Asset allocation at a snapshot, grouped by asset_class.
- * Returns array of { assetClass, valueChf, weightPct } sorted by weight desc.
+ * Asset allocation at a snapshot, grouped by asset_class (base ccy weights).
  */
-export function getAssetAllocation(portfolioId, snapshotDate) {
+export function getAssetAllocation(portfolioId, snapshotDate, ccy = 'base') {
   const holdings = getHoldingsAtSnapshot(portfolioId, snapshotDate)
-  if (holdings.length === 0) return { allocation: [], totalChf: 0, snapshotDate, portfolioId }
-
+  if (holdings.length === 0) return { allocation: [], totalBase: 0, snapshotDate, portfolioId }
   const byClass = {}
   let total = 0
-
   for (const h of holdings) {
-    if (typeof h.market_value_chf !== 'number') continue
+    const v = MV(h, ccy)
+    if (typeof v !== 'number') continue
     const cls = h.asset_class || 'Unknown'
-    byClass[cls] = (byClass[cls] || 0) + h.market_value_chf
-    total += h.market_value_chf
+    byClass[cls] = (byClass[cls] || 0) + v
+    total += v
   }
-
   const allocation = Object.entries(byClass)
-    .map(([assetClass, valueChf]) => ({
-      assetClass,
-      valueChf: Math.round(valueChf),
-      weightPct: total > 0 ? Math.round((valueChf / total) * 1000) / 10 : 0,
-    }))
+    .map(([assetClass, value]) => ({ assetClass, value, weightPct: total > 0 ? Math.round((value / total) * 1000) / 10 : 0 }))
     .sort((a, b) => b.weightPct - a.weightPct)
-
-  return {
-    allocation,
-    totalChf: Math.round(total),
-    snapshotDate,
-    portfolioId,
-    _source: snapshotDate === LATEST_SNAPSHOT ? 'holdings.csv' : 'holdings_snapshots.csv',
-  }
+  return { allocation, totalBase: total, snapshotDate, portfolioId, _source: 'holdings.csv' }
 }
 
 /**
- * Aggregates multiple portfolios for a client at a snapshot.
- * Returns combined value, combined allocation, and per-portfolio breakdown.
+ * Aggregate a client's portfolios at a snapshot. Uses USD so portfolios in
+ * different base currencies can be summed consistently.
  */
 export function getClientAggregatedPortfolio(clientId, snapshotDate) {
   const store = loadAllData()
   const portfolios = store.portfoliosByClient[clientId] || []
+  if (portfolios.length === 0) return { clientId, snapshotDate, totalUsd: 0, portfolios: [], allocation: [] }
 
-  if (portfolios.length === 0) {
-    return { clientId, snapshotDate, totalChf: 0, portfolios: [], allocation: [] }
-  }
-
-  let grandTotal = 0
+  let grandTotalUsd = 0
   const allocationMap = {}
   const portfolioBreakdowns = []
 
   for (const pf of portfolios) {
     const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
-    let pfTotal = 0
+    let pfUsd = 0
     const pfAlloc = {}
-
     for (const h of holdings) {
-      if (typeof h.market_value_chf !== 'number') continue
-      pfTotal += h.market_value_chf
+      const v = h.market_value_usd
+      if (typeof v !== 'number') continue
+      pfUsd += v
       const cls = h.asset_class || 'Unknown'
-      pfAlloc[cls] = (pfAlloc[cls] || 0) + h.market_value_chf
-      allocationMap[cls] = (allocationMap[cls] || 0) + h.market_value_chf
-      grandTotal += h.market_value_chf
+      pfAlloc[cls] = (pfAlloc[cls] || 0) + v
+      allocationMap[cls] = (allocationMap[cls] || 0) + v
+      grandTotalUsd += v
     }
-
     portfolioBreakdowns.push({
       portfolioId: pf.portfolio_id,
       portfolioName: pf.portfolio_name,
-      portfolioType: pf.portfolio_type,
-      valueChf: Math.round(pfTotal),
+      serviceModel: pf.service_model,
+      mandateCode: pf.mandate_code,
+      baseCurrency: pf.base_currency,
+      valueUsd: pfUsd,
       holdingCount: holdings.length,
       hasSnapshotData: holdings.length > 0,
       allocation: Object.entries(pfAlloc).map(([assetClass, v]) => ({
-        assetClass,
-        valueChf: Math.round(v),
-        weightPct: pfTotal > 0 ? Math.round((v / pfTotal) * 1000) / 10 : 0,
+        assetClass, valueUsd: v, weightPct: pfUsd > 0 ? Math.round((v / pfUsd) * 1000) / 10 : 0,
       })),
     })
   }
 
-  const combinedAllocation = Object.entries(allocationMap)
-    .map(([assetClass, valueChf]) => ({
-      assetClass,
-      valueChf: Math.round(valueChf),
-      weightPct: grandTotal > 0 ? Math.round((valueChf / grandTotal) * 1000) / 10 : 0,
-    }))
+  const allocation = Object.entries(allocationMap)
+    .map(([assetClass, valueUsd]) => ({ assetClass, valueUsd, weightPct: grandTotalUsd > 0 ? Math.round((valueUsd / grandTotalUsd) * 1000) / 10 : 0 }))
     .sort((a, b) => b.weightPct - a.weightPct)
 
   return {
     clientId,
     snapshotDate,
-    totalChf: Math.round(grandTotal),
+    totalUsd: grandTotalUsd,
     portfolioCount: portfolios.length,
     portfolios: portfolioBreakdowns,
-    allocation: combinedAllocation,
+    allocation,
   }
 }
 
 /**
- * Compares two snapshots for a client: returns allocation and value changes.
+ * Compare two snapshots for a client (USD).
  */
 export function compareSnapshots(clientId, fromDate, toDate) {
   if (!SNAPSHOTS.includes(fromDate) || !SNAPSHOTS.includes(toDate)) {
     throw new Error(`Invalid snapshot dates. Supported: ${SNAPSHOTS.join(', ')}`)
   }
-
   const from = getClientAggregatedPortfolio(clientId, fromDate)
   const to = getClientAggregatedPortfolio(clientId, toDate)
+  const valueChangeUsd = to.totalUsd - from.totalUsd
+  const valueChangePct = from.totalUsd > 0 ? Math.round((valueChangeUsd / from.totalUsd) * 10000) / 100 : null
 
-  const valueChangeChf = to.totalChf - from.totalChf
-  const valueChangePct = from.totalChf > 0
-    ? Math.round((valueChangeChf / from.totalChf) * 10000) / 100
-    : null
-
-  // Build allocation change map
   const allocFrom = Object.fromEntries(from.allocation.map(a => [a.assetClass, a]))
   const allocTo = Object.fromEntries(to.allocation.map(a => [a.assetClass, a]))
   const allClasses = new Set([...Object.keys(allocFrom), ...Object.keys(allocTo)])
-
   const allocationChanges = Array.from(allClasses).map(cls => ({
     assetClass: cls,
     fromWeightPct: allocFrom[cls]?.weightPct ?? 0,
     toWeightPct: allocTo[cls]?.weightPct ?? 0,
     changePpts: Math.round(((allocTo[cls]?.weightPct ?? 0) - (allocFrom[cls]?.weightPct ?? 0)) * 10) / 10,
-    fromValueChf: allocFrom[cls]?.valueChf ?? 0,
-    toValueChf: allocTo[cls]?.valueChf ?? 0,
   })).sort((a, b) => Math.abs(b.changePpts) - Math.abs(a.changePpts))
 
-  return {
-    clientId,
-    fromSnapshot: fromDate,
-    toSnapshot: toDate,
-    fromTotalChf: from.totalChf,
-    toTotalChf: to.totalChf,
-    valueChangeChf,
-    valueChangePct,
-    allocationChanges,
-    fromPortfolios: from.portfolios,
-    toPortfolios: to.portfolios,
-  }
+  return { clientId, fromSnapshot: fromDate, toSnapshot: toDate, fromTotalUsd: from.totalUsd, toTotalUsd: to.totalUsd, valueChangeUsd, valueChangePct, allocationChanges }
 }
 
 /**
- * Returns the full snapshot history for a client across all five snapshots.
+ * Full snapshot history for a client across all five snapshots (USD totals +
+ * allocation), for timeline rendering.
  */
 export function getSnapshotHistory(clientId) {
   return SNAPSHOTS.map(date => {
     const agg = getClientAggregatedPortfolio(clientId, date)
     return {
       snapshotDate: date,
-      totalChf: agg.totalChf,
+      totalUsd: agg.totalUsd,
       hasData: agg.portfolios.some(p => p.hasSnapshotData),
       allocation: agg.allocation,
       portfolioCount: agg.portfolioCount,
@@ -246,106 +170,25 @@ export function getSnapshotHistory(clientId) {
 }
 
 /**
- * Sector/geography concentration at snapshot — relevant for Lau (real estate) and Abdullah (shipping/energy).
- * Groups holdings by sector field from instrument data.
+ * Sector concentration at a snapshot (base ccy weights), across a client's
+ * portfolios. Uses instrument sector where present, else holding sector.
  */
-export function getSectorConcentration(portfolioId, snapshotDate) {
-  const holdings = getHoldingsAtSnapshot(portfolioId, snapshotDate)
+export function getClientSectorConcentration(clientId, snapshotDate) {
+  const store = loadAllData()
+  const portfolios = store.portfoliosByClient[clientId] || []
   const bySector = {}
   let total = 0
-
-  for (const h of holdings) {
-    if (typeof h.market_value_chf !== 'number') continue
-    const sector = h.instrument?.sector || h.sub_class || 'Unknown'
-    bySector[sector] = (bySector[sector] || 0) + h.market_value_chf
-    total += h.market_value_chf
+  for (const pf of portfolios) {
+    const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
+    for (const h of holdings) {
+      const v = h.market_value_usd
+      if (typeof v !== 'number') continue
+      const sector = h.instrument?.sector || h.sector || 'Unknown'
+      bySector[sector] = (bySector[sector] || 0) + v
+      total += v
+    }
   }
-
   return Object.entries(bySector)
-    .map(([sector, valueChf]) => ({
-      sector,
-      valueChf: Math.round(valueChf),
-      weightPct: total > 0 ? Math.round((valueChf / total) * 1000) / 10 : 0,
-    }))
+    .map(([sector, valueUsd]) => ({ sector, valueUsd, weightPct: total > 0 ? Math.round((valueUsd / total) * 1000) / 10 : 0 }))
     .sort((a, b) => b.weightPct - a.weightPct)
-}
-
-/**
- * Look-through for structured products: returns underlying exposure.
- * For holdings where the instrument is_structured=true and has underlying_instruments,
- * returns the proportional underlying instrument names.
- */
-export function getStructuredProductLookThrough(portfolioId, snapshotDate) {
-  const store = loadAllData()
-  const holdings = getHoldingsAtSnapshot(portfolioId, snapshotDate)
-  const results = []
-
-  for (const h of holdings) {
-    const inst = store.instrumentById[h.instrument_id]
-    if (!inst || !inst.is_structured) continue
-
-    const underlyingIds = (inst.underlying_instruments || '').split(';').filter(Boolean)
-    const underlyings = underlyingIds.map(uid => store.instrumentById[uid.trim()]).filter(Boolean)
-
-    results.push({
-      holdingId: h.holding_id,
-      instrumentId: h.instrument_id,
-      instrumentName: inst.name,
-      structureType: inst.sub_class,
-      marketValueChf: h.market_value_chf,
-      maturityDate: inst.maturity_date || null,
-      notes: inst.notes || null,
-      underlyingExposures: underlyings.map(u => ({
-        instrumentId: u.instrument_id,
-        name: u.name,
-        sector: u.sector,
-        assetClass: u.asset_class,
-      })),
-    })
-  }
-
-  return results
-}
-
-/**
- * Holding/exposure changes between two snapshots for a single portfolio.
- * Returns per-holding value and weight changes.
- */
-export function getHoldingChanges(portfolioId, fromDate, toDate) {
-  const fromHoldings = getHoldingsAtSnapshot(portfolioId, fromDate)
-  const toHoldings = getHoldingsAtSnapshot(portfolioId, toDate)
-
-  const fromMap = {}
-  for (const h of fromHoldings) fromMap[h.instrument_id] = h
-
-  const toMap = {}
-  for (const h of toHoldings) toMap[h.instrument_id] = h
-
-  const allInstruments = new Set([
-    ...Object.keys(fromMap),
-    ...Object.keys(toMap),
-  ])
-
-  const changes = []
-  for (const instrId of allInstruments) {
-    const from = fromMap[instrId]
-    const to = toMap[instrId]
-    const store = loadAllData()
-    const inst = store.instrumentById[instrId]
-
-    changes.push({
-      instrumentId: instrId,
-      instrumentName: inst?.name || instrId,
-      assetClass: (from || to).asset_class,
-      fromValueChf: from?.market_value_chf ?? 0,
-      toValueChf: to?.market_value_chf ?? 0,
-      valueChangeChf: (to?.market_value_chf ?? 0) - (from?.market_value_chf ?? 0),
-      fromWeightPct: from?.weight_pct ?? 0,
-      toWeightPct: to?.weight_pct ?? 0,
-      weightChangePpts: Math.round(((to?.weight_pct ?? 0) - (from?.weight_pct ?? 0)) * 10) / 10,
-      status: !from ? 'new' : !to ? 'exited' : 'existing',
-    })
-  }
-
-  return changes.sort((a, b) => Math.abs(b.valueChangeChf) - Math.abs(a.valueChangeChf))
 }

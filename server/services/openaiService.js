@@ -184,7 +184,7 @@ export function buildDeterministicBrief(briefInput, reason = 'AI unavailable') {
 
   // Why it matters — ties each signal to the client's stated objective/context,
   // using only fields already present.
-  const objective = clientContext.investmentObjective
+  const objective = clientContext.objectives || clientContext.investmentObjective
   const whyParts = sorted.map((s) => `${s.title} — ${s.summary || 'see verified metrics'}`)
   const whyItMatters =
     (objective ? `Stated objective on record: "${objective}". ` : '') +

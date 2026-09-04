@@ -103,9 +103,7 @@ app.get('/api/rm', asyncHandler(async (req, res) => {
   res.json({
     rmId: rm.rm_id,
     name: rm.rm_name,
-    title: rm.rm_title,
-    team: rm.rm_team,
-    location: rm.rm_location,
+    desk: rm.rm_desk,
   })
 }))
 
@@ -115,17 +113,16 @@ app.get('/api/clients', asyncHandler(async (req, res) => {
   const store = loadAllData()
   const clients = store.raw.clients.map(c => ({
     clientId: c.client_id,
-    name: c.full_name,
-    shortName: c.short_name,
-    domicile: `${c.domicile_city}, ${c.domicile_country}`,
-    segment: c.segment,
+    name: c.client_name,
+    age: c.age,
+    baseCurrency: c.base_currency,
     riskProfile: c.risk_profile,
-    mandateType: c.mandate_type,
-    aumChf: c.aum_chf,
-    relationshipSince: c.relationship_since,
-    tier: c.relationship_tier,
-    lastContactDate: c.last_contact_date,
-    contactCadenceDays: c.contact_cadence_days,
+    wealthBand: c.wealth_band,
+    aumUsd: c.total_aum_usd,
+    lifeStage: c.life_stage,
+    sourceOfWealth: c.source_of_wealth,
+    liquidityNeeds: c.liquidity_needs,
+    clientSince: c.client_since,
   }))
   res.json(clients)
 }))
@@ -134,8 +131,15 @@ app.get('/api/clients/:id', asyncHandler(async (req, res) => {
   const store = loadAllData()
   const client = store.clientById[req.params.id]
   if (!client) return res.status(404).json({ error: 'Client not found' })
-  const mandate = store.mandateByClient[req.params.id]
-  res.json({ ...client, mandate: mandate || null })
+  // Join mandate rows for each of the client's portfolios (mandate_code → rows).
+  const portfolios = store.portfoliosByClient[req.params.id] || []
+  const mandates = portfolios.map(p => ({
+    portfolioId: p.portfolio_id,
+    mandateCode: p.mandate_code,
+    mandateName: p.mandate_name,
+    rows: store.mandateRowsByCode[p.mandate_code] || [],
+  }))
+  res.json({ ...client, mandates })
 }))
 
 // ─── Portfolio ─────────────────────────────────────────────────────────────────
@@ -340,7 +344,6 @@ function startLocalServer() {
       console.log(`  Clients: ${validation.summary.clients}`)
       console.log(`  Portfolios: ${validation.summary.portfolios}`)
       console.log(`  Holdings: ${validation.summary.holdings}`)
-      console.log(`  Snapshot holdings: ${validation.summary.holdingsSnapshots}`)
       console.log(`  Instruments: ${validation.summary.instruments}`)
       console.log(`  Credit facilities: ${validation.summary.creditFacilities}`)
       console.log(`  Planned cash needs: ${validation.summary.plannedCashNeeds}`)

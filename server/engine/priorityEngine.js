@@ -1,31 +1,27 @@
 /**
  * priorityEngine.js
  *
- * Phase 6: Transparent, deterministic priority/relevance scoring for all 20 clients.
+ * Transparent, deterministic priority/relevance scoring for all 20 clients —
+ * OFFICIAL schema.
  *
  * GOVERNANCE:
- *   - No mysterious AI scores. Every score is a sum of named factor components.
+ *   - No opaque AI scores. Every score is a sum of named factor components.
  *   - Returns score components so the frontend can explain WHY THIS CLIENT IS #1.
- *   - Basic prioritisation applied across all 20 clients.
- *   - Deep bespoke analysis only for CL-0014, CL-0019, CL-0003.
+ *   - Basic prioritisation across all 20 clients; deep bespoke analysis only for
+ *     CL-0014, CL-0019, CL-0003 (their dedicated modules produce the score).
  */
 
 import { loadAllData } from './dataLoader.js'
 import {
   getClientAggregatedPortfolio,
   getHoldingsAtSnapshot,
+  getClientSectorConcentration,
   LATEST_SNAPSHOT,
 } from './snapshotEngine.js'
 import { getLauChiMingIntelligence } from './lauIntelligence.js'
 import { getAbdullahIntelligence } from './abdullahIntelligence.js'
 import { getMargartheIntelligence } from './margaretheIntelligence.js'
 
-// The three presentation clients receive deep, bespoke analysis. Their
-// authoritative priority score + factors come from their dedicated modules,
-// NOT the basic scorer, so the dashboard ranking is consistent with the
-// detail pages. All other clients use the transparent basic scorer.
-// (Safe: the deep modules import only snapshotEngine + dataLoader, never this
-// file, so there is no circular dependency.)
 const DEEP_CLIENT_SCORERS = {
   'CL-0014': getLauChiMingIntelligence,
   'CL-0019': getAbdullahIntelligence,
@@ -35,26 +31,26 @@ const DEEP_CLIENT_SCORERS = {
 // ─── Scoring Weights ───────────────────────────────────────────────────────────
 
 const WEIGHTS = {
-  liquidityUrgency: 25,       // Confirmed cash need within 90 days
-  liquidityModerate: 15,      // Confirmed cash need within 180 days
-  mandateBreach: 30,          // Active mandate/suitability breach
-  mandateWarning: 15,         // Mandate approaching limit
-  creditCritical: 25,         // Credit facility within 5ppts of margin call
-  creditWarning: 15,          // Credit facility within 15ppts of margin call
-  concentrationHigh: 20,      // Single sector/issuer >50% (or >2x mandate max)
-  concentrationMedium: 10,    // Single sector/issuer between 1x and 2x mandate max
-  cadenceOverdue: 10,         // Contact cadence overdue
-  lifeEvent: 15,              // Active life event (inheritance, succession, etc.)
-  scenarioExposure: 10,       // Exposure to an active authoritative event scenario
-  objectiveMisalignment: 20,  // Formal objective on record that is not being met
+  liquidityUrgency: 25,       // Confirmed cash need within 120 days
+  liquidityModerate: 15,      // Confirmed cash need within 240 days
+  mandateBreach: 30,          // Equity/asset-class outside mandate band by >5ppts
+  mandateWarning: 15,         // Asset class outside mandate band
+  creditCritical: 25,         // Facility within 2ppts of margin call
+  creditWarning: 15,          // Facility within 10ppts of margin call
+  concentrationHigh: 20,      // Single sector/position >2x mandate single max
+  concentrationMedium: 10,    // Single position above mandate single max
+  scenarioExposure: 10,       // Exposure to sectors hit by Severe/High events
+  singlePositionBreach: 15,   // Any holding above mandate max_single_position_pct
+}
+
+// Latest facility snapshot helper (official per-snapshot columns).
+function facilityLtvAt(cf, snapshotDate) {
+  const ltv = cf[`ltv_pct_${snapshotDate}`]
+  return typeof ltv === 'number' ? ltv : null
 }
 
 // ─── Basic Scoring for All Clients ────────────────────────────────────────────
 
-/**
- * Runs basic scoring for a single client using available data.
- * Returns a transparent score breakdown.
- */
 function scoreClient(clientId, snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const client = store.clientById[clientId]
@@ -63,195 +59,119 @@ function scoreClient(clientId, snapshotDate = LATEST_SNAPSHOT) {
   const factors = {}
   const factorNotes = {}
   let totalScore = 0
+  const ref = new Date(snapshotDate)
 
-  // 1. Liquidity urgency
+  // 1. Liquidity urgency — confirmed cash needs by due_from proximity.
   const cashNeeds = store.cashNeedsByClient[clientId] || []
-  const today = new Date(snapshotDate)
-
-  const confirmedNeedsWithin90 = cashNeeds.filter(cn => {
-    if (cn.status !== 'Confirmed') return false
-    const due = new Date(cn.due_date)
-    const days = Math.round((due - today) / (1000 * 60 * 60 * 24))
-    return days <= 90 && days >= 0
-  })
-  const confirmedNeedsWithin180 = cashNeeds.filter(cn => {
-    if (cn.status !== 'Confirmed') return false
-    const due = new Date(cn.due_date)
-    const days = Math.round((due - today) / (1000 * 60 * 60 * 24))
-    return days > 90 && days <= 180
-  })
-
-  if (confirmedNeedsWithin90.length > 0) {
-    const score = WEIGHTS.liquidityUrgency
-    factors.liquidityUrgency = score
-    totalScore += score
-    factorNotes.liquidityUrgency = `${confirmedNeedsWithin90.length} confirmed cash need(s) within 90 days`
-  } else if (confirmedNeedsWithin180.length > 0) {
-    const score = WEIGHTS.liquidityModerate
-    factors.liquidityModerate = score
-    totalScore += score
-    factorNotes.liquidityModerate = `${confirmedNeedsWithin180.length} confirmed cash need(s) within 180 days`
+  const daysTo = (d) => Math.round((new Date(d) - ref) / (1000 * 60 * 60 * 24))
+  const confirmed = cashNeeds.filter(cn => (cn.certainty || '').toLowerCase() === 'confirmed')
+  const within120 = confirmed.filter(cn => { const d = daysTo(cn.due_from); return d >= 0 && d <= 120 })
+  const within240 = confirmed.filter(cn => { const d = daysTo(cn.due_from); return d > 120 && d <= 240 })
+  if (within120.length > 0) {
+    factors.liquidityUrgency = WEIGHTS.liquidityUrgency; totalScore += WEIGHTS.liquidityUrgency
+    factorNotes.liquidityUrgency = `${within120.length} confirmed cash need(s) within 120 days`
+  } else if (within240.length > 0) {
+    factors.liquidityModerate = WEIGHTS.liquidityModerate; totalScore += WEIGHTS.liquidityModerate
+    factorNotes.liquidityModerate = `${within240.length} confirmed cash need(s) within 240 days`
   }
 
-  // 2. Credit facility proximity
-  const creditFacilities = store.creditFacilitiesByClient[clientId] || []
-  const criticalFacilities = creditFacilities.filter(cf =>
-    typeof cf.ltv_margin_call_pct === 'number' &&
-    typeof cf.ltv_current_pct === 'number' &&
-    (cf.ltv_margin_call_pct - cf.ltv_current_pct) <= 5
-  )
-  const warningFacilities = creditFacilities.filter(cf =>
-    typeof cf.ltv_margin_call_pct === 'number' &&
-    typeof cf.ltv_current_pct === 'number' &&
-    (cf.ltv_margin_call_pct - cf.ltv_current_pct) > 5 &&
-    (cf.ltv_margin_call_pct - cf.ltv_current_pct) <= 15
-  )
-
-  if (criticalFacilities.length > 0) {
-    const score = WEIGHTS.creditCritical
-    factors.creditCritical = score
-    totalScore += score
-    factorNotes.creditCritical = `${criticalFacilities.length} credit facility within 5ppts of margin-call threshold`
-  } else if (warningFacilities.length > 0) {
-    const score = WEIGHTS.creditWarning
-    factors.creditWarning = score
-    totalScore += score
-    factorNotes.creditWarning = `${warningFacilities.length} credit facility within 15ppts of margin-call threshold`
-  }
-
-  // 3. Mandate checks — basic equity ceiling check
-  const mandate = store.mandateByClient[clientId]
-  if (mandate) {
-    const aggPortfolio = getClientAggregatedPortfolio(clientId, snapshotDate)
-    const equityAlloc = aggPortfolio.allocation.find(a => a.assetClass === 'Equity')
-    const equityPct = equityAlloc?.weightPct || 0
-
-    if (typeof mandate.equity_max_pct === 'number') {
-      if (equityPct > mandate.equity_max_pct + 5) {
-        const score = WEIGHTS.mandateBreach
-        factors.mandateBreach = score
-        totalScore += score
-        factorNotes.mandateBreach = `Equity ${equityPct}% vs mandate max ${mandate.equity_max_pct}% (breach: +${Math.round((equityPct - mandate.equity_max_pct) * 10) / 10}ppts)`
-      } else if (equityPct > mandate.equity_max_pct) {
-        const score = WEIGHTS.mandateWarning
-        factors.mandateWarning = score
-        totalScore += score
-        factorNotes.mandateWarning = `Equity ${equityPct}% approaching mandate max ${mandate.equity_max_pct}%`
-      }
-    }
-
-    // Single sector max check
-    const maxSectorPct = mandate.max_single_sector_pct
-    if (typeof maxSectorPct === 'number') {
-      const portfolios = store.portfoliosByClient[clientId] || []
-      for (const pf of portfolios) {
-        const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
-        const total = holdings.reduce((s, h) => s + (h.market_value_chf || 0), 0)
-        const bySector = {}
-        for (const h of holdings) {
-          const inst = store.instrumentById[h.instrument_id]
-          const sector = inst?.sector || h.sub_class || 'Unknown'
-          bySector[sector] = (bySector[sector] || 0) + (h.market_value_chf || 0)
-        }
-        for (const [sector, val] of Object.entries(bySector)) {
-          const pct = total > 0 ? (val / total) * 100 : 0
-          if (pct > maxSectorPct * 2 && !factors.concentrationHigh) {
-            factors.concentrationHigh = WEIGHTS.concentrationHigh
-            totalScore += WEIGHTS.concentrationHigh
-            factorNotes.concentrationHigh = `${sector} sector at ${Math.round(pct)}% (>2x mandate max of ${maxSectorPct}%)`
-          } else if (pct > maxSectorPct && !factors.concentrationMedium && !factors.concentrationHigh) {
-            factors.concentrationMedium = WEIGHTS.concentrationMedium
-            totalScore += WEIGHTS.concentrationMedium
-            factorNotes.concentrationMedium = `${sector} sector at ${Math.round(pct)}% (above mandate max of ${maxSectorPct}%)`
-          }
-        }
-      }
+  // 2. Credit facility proximity to margin call.
+  const facilities = store.creditFacilitiesByClient[clientId] || []
+  let minHeadroom = null
+  for (const cf of facilities) {
+    const ltv = facilityLtvAt(cf, snapshotDate)
+    const mc = cf.margin_call_ltv_pct
+    if (typeof ltv === 'number' && typeof mc === 'number') {
+      const hr = mc - ltv
+      if (minHeadroom === null || hr < minHeadroom) minHeadroom = hr
     }
   }
-
-  // 4. Contact cadence
-  if (client.last_contact_date && client.contact_cadence_days) {
-    const lastContact = new Date(client.last_contact_date)
-    const daysSince = Math.round((today - lastContact) / (1000 * 60 * 60 * 24))
-    if (daysSince > client.contact_cadence_days) {
-      const score = WEIGHTS.cadenceOverdue
-      factors.cadenceOverdue = score
-      totalScore += score
-      factorNotes.cadenceOverdue = `Last contact ${daysSince} days ago vs ${client.contact_cadence_days}-day cadence (${daysSince - client.contact_cadence_days} days overdue)`
-    }
+  if (minHeadroom !== null && minHeadroom <= 2) {
+    factors.creditCritical = WEIGHTS.creditCritical; totalScore += WEIGHTS.creditCritical
+    factorNotes.creditCritical = `Credit facility within ${Math.round(minHeadroom * 100) / 100}ppts of margin call`
+  } else if (minHeadroom !== null && minHeadroom <= 10) {
+    factors.creditWarning = WEIGHTS.creditWarning; totalScore += WEIGHTS.creditWarning
+    factorNotes.creditWarning = `Credit facility within ${Math.round(minHeadroom * 100) / 100}ppts of margin call`
   }
 
-  // 5. Life events — check RM notes for life event type
-  const rmNotes = store.rmNotesByClient[clientId] || []
-  const hasActiveLifeEvent = rmNotes.some(n =>
-    n.note_type === 'Life Event' && n.action_required === true
-  )
-  if (hasActiveLifeEvent) {
-    const score = WEIGHTS.lifeEvent
-    factors.lifeEvent = score
-    totalScore += score
-    factorNotes.lifeEvent = 'Active life-event noted requiring action'
-  }
-
-  // 6. Scenario exposure — clients with shipping/energy or HK property exposure
-  // Check relevant events from event_log
-  const recentHighEvents = store.raw.eventLog.filter(e =>
-    e.authoritative === true &&
-    e.severity === 'High' &&
-    new Date(e.event_date) >= new Date('2026-01-01')
-  )
-
+  // 3. Mandate checks — per-asset-class bands from mandates.csv.
   const portfolios = store.portfoliosByClient[clientId] || []
-  let hasScenarioExposure = false
+  const agg = getClientAggregatedPortfolio(clientId, snapshotDate)
+  const allocByClass = Object.fromEntries(agg.allocation.map(a => [a.assetClass, a.weightPct]))
+  let worstBreach = null // { assetClass, actual, max, ppts }
+  for (const pf of portfolios) {
+    const rows = store.mandateRowsByCode[pf.mandate_code] || []
+    for (const r of rows) {
+      const actual = allocByClass[r.asset_class] ?? 0
+      if (typeof r.max_pct === 'number' && actual > r.max_pct) {
+        const ppts = actual - r.max_pct
+        if (!worstBreach || ppts > worstBreach.ppts) worstBreach = { assetClass: r.asset_class, actual, max: r.max_pct, ppts }
+      }
+    }
+  }
+  if (worstBreach) {
+    if (worstBreach.ppts > 5) {
+      factors.mandateBreach = WEIGHTS.mandateBreach; totalScore += WEIGHTS.mandateBreach
+      factorNotes.mandateBreach = `${worstBreach.assetClass} ${Math.round(worstBreach.actual * 10) / 10}% vs mandate max ${worstBreach.max}% (breach +${Math.round(worstBreach.ppts * 10) / 10}ppts)`
+    } else {
+      factors.mandateWarning = WEIGHTS.mandateWarning; totalScore += WEIGHTS.mandateWarning
+      factorNotes.mandateWarning = `${worstBreach.assetClass} ${Math.round(worstBreach.actual * 10) / 10}% above mandate max ${worstBreach.max}%`
+    }
+  }
+
+  // 4. Single-position breach (any holding above mandate max_single_position_pct).
+  let singleBreach = null
+  for (const pf of portfolios) {
+    const singleMax = (store.mandateRowsByCode[pf.mandate_code] || [])[0]?.max_single_position_pct
+    if (typeof singleMax !== 'number') continue
+    const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
+    for (const h of holdings) {
+      if (typeof h.weight_pct === 'number' && h.weight_pct > singleMax) {
+        if (!singleBreach || h.weight_pct > singleBreach.weightPct) singleBreach = { name: h.instrument_name, weightPct: h.weight_pct, max: singleMax }
+      }
+    }
+  }
+  if (singleBreach) {
+    factors.singlePositionBreach = WEIGHTS.singlePositionBreach; totalScore += WEIGHTS.singlePositionBreach
+    factorNotes.singlePositionBreach = `${singleBreach.name} ${Math.round(singleBreach.weightPct * 10) / 10}% vs single-position max ${singleBreach.max}%`
+  }
+
+  // 5. Concentration by sector (independent of asset-class mandate bands).
+  const sectorConc = getClientSectorConcentration(clientId, snapshotDate)
+  const topSector = sectorConc[0]
+  if (topSector) {
+    if (topSector.weightPct > 50 && !factors.concentrationHigh) {
+      factors.concentrationHigh = WEIGHTS.concentrationHigh; totalScore += WEIGHTS.concentrationHigh
+      factorNotes.concentrationHigh = `${topSector.sector} sector at ${topSector.weightPct}% of book`
+    } else if (topSector.weightPct > 35 && !factors.concentrationMedium && !factors.concentrationHigh) {
+      factors.concentrationMedium = WEIGHTS.concentrationMedium; totalScore += WEIGHTS.concentrationMedium
+      factorNotes.concentrationMedium = `${topSector.sector} sector at ${topSector.weightPct}% of book`
+    }
+  }
+
+  // 6. Scenario exposure — sectors hit by Severe/High authoritative events.
+  const hasSevereEvents = store.raw.eventLog.some(e => e.authoritative === true && (e.severity === 'Severe' || e.severity === 'High'))
+  let scenarioExposed = false
   for (const pf of portfolios) {
     const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
     for (const h of holdings) {
-      const inst = store.instrumentById[h.instrument_id]
-      if (!inst) continue
-      const sectorStr = (inst.sector || '') + ' ' + (inst.sub_class || '')
-      // HK property exposure → tariff/trade events relevant
-      if (sectorStr.toLowerCase().includes('real estate') && sectorStr.toLowerCase().includes('hong kong')) {
-        hasScenarioExposure = true
-        break
-      }
-      // Shipping/energy → Hormuz relevant
-      if (sectorStr.toLowerCase().includes('shipping') || sectorStr.toLowerCase().includes('energy')) {
-        hasScenarioExposure = true
-        break
-      }
-      // Semiconductor → export control event relevant
-      if (sectorStr.toLowerCase().includes('semiconductor')) {
-        hasScenarioExposure = true
-        break
-      }
+      const s = `${h.sector || ''} ${h.sub_asset_class || ''} ${h.instrument_name || ''}`.toLowerCase()
+      if (/shipping|logistics|energy|oil|petro|real estate|property|technology|semiconductor/.test(s)) { scenarioExposed = true; break }
     }
-    if (hasScenarioExposure) break
+    if (scenarioExposed) break
   }
-
-  if (hasScenarioExposure) {
-    const score = WEIGHTS.scenarioExposure
-    factors.scenarioExposure = score
-    totalScore += score
-    factorNotes.scenarioExposure = 'Portfolio has exposure to sectors with recent high-severity authoritative events'
-  }
-
-  // 7. Objective misalignment — check RM notes
-  const hasObjectiveMisalignmentNote = rmNotes.some(n =>
-    n.tags && (n.tags.includes('diversification-objective') || n.tags.includes('mandate-breach'))
-    && n.action_required === true
-  )
-  if (hasObjectiveMisalignmentNote) {
-    const score = WEIGHTS.objectiveMisalignment
-    factors.objectiveMisalignment = score
-    totalScore += score
-    factorNotes.objectiveMisalignment = 'RM note records active objective misalignment or mandate concern requiring action'
+  if (hasSevereEvents && scenarioExposed) {
+    factors.scenarioExposure = WEIGHTS.scenarioExposure; totalScore += WEIGHTS.scenarioExposure
+    factorNotes.scenarioExposure = 'Portfolio exposed to sectors touched by Severe/High authoritative events'
   }
 
   return {
     clientId,
-    clientName: client.full_name,
-    segment: client.segment,
+    clientName: client.client_name,
+    baseCurrency: client.base_currency,
+    riskProfile: client.risk_profile,
     snapshotDate,
+    analysisDepth: 'basic',
     priorityScore: Math.min(100, totalScore),
     priority: totalScore >= 70 ? 'critical' : totalScore >= 50 ? 'high' : totalScore >= 30 ? 'medium' : 'low',
     scoreComponents: factors,
@@ -263,13 +183,8 @@ function scoreClient(clientId, snapshotDate = LATEST_SNAPSHOT) {
   }
 }
 
-// ─── Score All Clients ─────────────────────────────────────────────────────────
+// ─── Deep-client authoritative score ─────────────────────────────────────────
 
-/**
- * Returns the authoritative score for a client: deep-module score for the
- * three presentation clients, basic score for everyone else. Output shape is
- * identical for both so the ranking/frontend can treat them uniformly.
- */
 function scoreClientAuthoritative(clientId, snapshotDate = LATEST_SNAPSHOT) {
   const deepScorer = DEEP_CLIENT_SCORERS[clientId]
   if (!deepScorer) return scoreClient(clientId, snapshotDate)
@@ -279,11 +194,9 @@ function scoreClientAuthoritative(clientId, snapshotDate = LATEST_SNAPSHOT) {
   const raw = deepScorer(snapshotDate)
   const factors = raw.priorityFactors || {}
 
-  // Human-readable notes: prefer the deep signals' titles, fall back to factor names.
   const factorNotes = {}
-  for (const key of Object.keys(factors)) {
-    factorNotes[key] = humaniseFactor(key)
-  }
+  for (const key of Object.keys(factors)) factorNotes[key] = humaniseFactor(key)
+
   const whyThisClient = (raw.signals || [])
     .slice()
     .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))
@@ -291,8 +204,9 @@ function scoreClientAuthoritative(clientId, snapshotDate = LATEST_SNAPSHOT) {
 
   return {
     clientId,
-    clientName: raw.clientName || client?.full_name,
-    segment: client?.segment,
+    clientName: raw.clientName || client?.client_name,
+    baseCurrency: client?.base_currency,
+    riskProfile: client?.risk_profile,
     snapshotDate,
     analysisDepth: 'deep',
     priorityScore: Math.min(100, raw.priorityScore || 0),
@@ -307,12 +221,8 @@ function scoreClientAuthoritative(clientId, snapshotDate = LATEST_SNAPSHOT) {
 }
 
 function humaniseFactor(key) {
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, c => c.toUpperCase())
-    .trim()
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim()
 }
-
 function severityRank(sev) {
   return { high: 3, medium: 2, low: 1 }[(sev || '').toLowerCase()] ?? 0
 }

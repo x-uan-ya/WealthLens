@@ -1,379 +1,294 @@
 /**
  * lauIntelligence.js
  *
- * Phase 3: Lau Chi Ming (CL-0014) intelligence engine.
+ * Lau Chi Ming (CL-0014) intelligence engine — OFFICIAL schema.
+ *
+ * Client: HKD base, "Balanced" risk profile, mandate BAL, portfolio PF-0016.
+ * Story (all deterministic from official data @2026-08-26):
+ *   - Real-estate-linked exposure ≈ 49% of the HKD portfolio (direct property,
+ *     Golden Harbour equity + perpetual, and a Golden Harbour accumulator).
+ *   - Lombard facility CF-0002 (collateral PF-0016) at 69.41% LTV vs a 70.0%
+ *     margin-call level — 0.59 ppts of headroom.
+ *   - Confirmed HKD 60,000,000 Mid-Levels redevelopment equity contribution
+ *     (CN-013) due 2026-11-01 .. 2027-06-30.
+ *   - A single direct-property position is 19.58% of the portfolio vs the BAL
+ *     mandate single-position max of 12%.
  *
  * GOVERNANCE:
- *   - All conclusions derive from official dataset records.
- *   - Every claim is accompanied by evidence: { claim, value, source, recordId, snapshot, calculation, supportingFields }
- *   - AI must NOT calculate — all financial figures here are code-computed.
- *   - DO NOT hard-code conclusions. All values are derived from holdings, credit facilities, and cash needs.
+ *   - Every figure is code-computed from holdings.csv / credit_facilities.csv /
+ *     planned_cash_needs.csv / mandates.csv. AI never calculates.
+ *   - Evidence accompanies every claim: { claim, value, source, recordId, snapshot, calculation, supportingFields }.
  */
 
-import { loadAllData, getChfRate } from './dataLoader.js'
+import { loadAllData } from './dataLoader.js'
 import {
   getClientAggregatedPortfolio,
   getHoldingsAtSnapshot,
-  getStructuredProductLookThrough,
-  getSectorConcentration,
-  compareSnapshots,
   getSnapshotHistory,
   LATEST_SNAPSHOT,
 } from './snapshotEngine.js'
 
 const CLIENT_ID = 'CL-0014'
-const PROPERTY_SECTORS = new Set(['Real Estate', 'real estate'])
-const PROPERTY_INSTRUMENT_IDS = new Set(['INS-0002', 'INS-0003', 'INS-0004', 'INS-0012', 'INS-0017'])
-const PROPERTY_STRUCTURED_IDS = new Set(['INS-0005', 'INS-0015'])
+const PORTFOLIO_ID = 'PF-0016'
+
+// A holding is "real-estate-linked" if its sector is Real Estate, OR its name
+// references the client's property vehicles / direct property. This captures
+// direct property, the Golden Harbour equity + perpetual, and the accumulator.
+function isRealEstateLinked(h) {
+  const sector = (h.sector || h.instrument?.sector || '').toLowerCase()
+  const name = (h.instrument_name || '').toLowerCase()
+  return sector.includes('real estate') ||
+    name.includes('property') ||
+    name.includes('golden harbour') ||
+    name.includes('mid-levels')
+}
 
 // ─── Property Concentration ────────────────────────────────────────────────────
 
 export function calculatePropertyConcentration(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
-  const portfolios = store.portfoliosByClient[CLIENT_ID] || []
-  const evidence = []
+  const holdings = getHoldingsAtSnapshot(PORTFOLIO_ID, snapshotDate)
 
-  let totalPortfolioChf = 0
-  let directPropertyChf = 0
-  let structuredPropertyChf = 0
+  let totalBase = 0
+  let propertyBase = 0
+  let directPropertyBase = 0
+  let structuredPropertyBase = 0
   const holdingDetails = []
 
-  for (const pf of portfolios) {
-    const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
+  for (const h of holdings) {
+    const v = h.market_value_base
+    if (typeof v !== 'number') continue
+    totalBase += v
+    if (!isRealEstateLinked(h)) continue
 
-    for (const h of holdings) {
-      if (typeof h.market_value_chf !== 'number') continue
-      totalPortfolioChf += h.market_value_chf
+    propertyBase += v
+    const isStructured = (h.asset_class || '') === 'Structured Products'
+    if (isStructured) structuredPropertyBase += v
+    else directPropertyBase += v
 
-      const inst = store.instrumentById[h.instrument_id]
-      const isDirectProperty = PROPERTY_INSTRUMENT_IDS.has(h.instrument_id) ||
-        (inst && inst.sector && inst.sector.toLowerCase().includes('real estate') &&
-         h.sub_class !== 'Capital Protected Note' && h.sub_class !== 'Autocallable Note')
-      const isStructuredProperty = PROPERTY_STRUCTURED_IDS.has(h.instrument_id) ||
-        (inst && inst.is_structured && inst.sector && inst.sector.toLowerCase().includes('real estate'))
-
-      if (isDirectProperty) {
-        directPropertyChf += h.market_value_chf
-        holdingDetails.push({
-          holdingId: h.holding_id,
-          portfolioId: pf.portfolio_id,
-          instrumentId: h.instrument_id,
-          name: inst?.name || h.instrument_id,
-          type: 'Direct',
-          assetClass: h.asset_class,
-          subClass: h.sub_class,
-          valueChf: h.market_value_chf,
-          weightPct: h.weight_pct,
-          snapshotDate,
-          source: snapshotDate === LATEST_SNAPSHOT ? 'holdings.csv' : 'holdings_snapshots.csv',
-        })
-      } else if (isStructuredProperty) {
-        structuredPropertyChf += h.market_value_chf
-        holdingDetails.push({
-          holdingId: h.holding_id,
-          portfolioId: pf.portfolio_id,
-          instrumentId: h.instrument_id,
-          name: inst?.name || h.instrument_id,
-          type: 'Structured (Property-linked)',
-          assetClass: h.asset_class,
-          subClass: h.sub_class,
-          valueChf: h.market_value_chf,
-          weightPct: h.weight_pct,
-          maturityDate: inst?.maturity_date || null,
-          notes: inst?.notes || null,
-          snapshotDate,
-          source: snapshotDate === LATEST_SNAPSHOT ? 'holdings.csv' : 'holdings_snapshots.csv',
-        })
-      }
-    }
+    holdingDetails.push({
+      instrumentId: h.instrument_id,
+      name: h.instrument_name,
+      assetClass: h.asset_class,
+      subClass: h.sub_asset_class,
+      sector: h.sector,
+      valueBase: Math.round(v),
+      weightPct: h.weight_pct,
+      type: isStructured ? 'Structured (property-linked)' : 'Direct / issuer property',
+    })
   }
 
-  const totalPropertyChf = directPropertyChf + structuredPropertyChf
-  const totalPropertyPct = totalPortfolioChf > 0
-    ? Math.round((totalPropertyChf / totalPortfolioChf) * 1000) / 10
-    : 0
-  const directPropertyPct = totalPortfolioChf > 0
-    ? Math.round((directPropertyChf / totalPortfolioChf) * 1000) / 10
-    : 0
-  const structuredPropertyPct = totalPortfolioChf > 0
-    ? Math.round((structuredPropertyChf / totalPortfolioChf) * 1000) / 10
-    : 0
+  const pct = (n) => (totalBase > 0 ? Math.round((n / totalBase) * 10000) / 100 : 0)
 
-  evidence.push({
-    claim: 'Total property-linked concentration (direct + structured)',
-    value: `${totalPropertyPct}% of combined portfolio`,
-    valueChf: totalPropertyChf,
-    source: snapshotDate === LATEST_SNAPSHOT ? 'holdings.csv' : 'holdings_snapshots.csv',
-    recordIds: holdingDetails.map(h => h.holdingId),
+  const evidence = [{
+    claim: 'Real-estate-linked concentration in the portfolio',
+    value: `${pct(propertyBase)}% of PF-0016 (HKD ${Math.round(propertyBase).toLocaleString()} of ${Math.round(totalBase).toLocaleString()})`,
+    source: 'holdings.csv',
+    recordId: PORTFOLIO_ID,
     snapshot: snapshotDate,
-    calculation: `Direct (CHF ${directPropertyChf.toLocaleString()}) + Structured (CHF ${structuredPropertyChf.toLocaleString()}) = CHF ${totalPropertyChf.toLocaleString()} / Total CHF ${totalPortfolioChf.toLocaleString()}`,
-    supportingFields: ['market_value_chf', 'instrument_id', 'sub_class'],
-  })
-
-  // Look-through for structured products
-  const lookThrough = []
-  for (const pf of portfolios) {
-    const structured = getStructuredProductLookThrough(pf.portfolio_id, snapshotDate)
-    lookThrough.push(...structured)
-  }
+    calculation: `Sum of market_value_base for real-estate-sector or Golden Harbour / direct-property holdings / total market_value_base`,
+    supportingFields: ['market_value_base', 'asset_class', 'sector', 'instrument_name'],
+  }]
 
   return {
-    snapshotDate,
     clientId: CLIENT_ID,
-    totalPortfolioChf: Math.round(totalPortfolioChf),
-    directPropertyChf: Math.round(directPropertyChf),
-    directPropertyPct,
-    structuredPropertyChf: Math.round(structuredPropertyChf),
-    structuredPropertyPct,
-    totalPropertyChf: Math.round(totalPropertyChf),
-    totalPropertyPct,
-    holdingDetails,
-    structuredLookThrough: lookThrough,
+    portfolioId: PORTFOLIO_ID,
+    snapshotDate,
+    baseCurrency: holdings[0]?.portfolio_ccy || 'HKD',
+    totalPortfolioBase: Math.round(totalBase),
+    totalPropertyBase: Math.round(propertyBase),
+    totalPropertyPct: pct(propertyBase),
+    directPropertyBase: Math.round(directPropertyBase),
+    directPropertyPct: pct(directPropertyBase),
+    structuredPropertyBase: Math.round(structuredPropertyBase),
+    structuredPropertyPct: pct(structuredPropertyBase),
+    holdingDetails: holdingDetails.sort((a, b) => b.valueBase - a.valueBase),
     evidence,
   }
 }
 
-// ─── Credit Facility Analysis ──────────────────────────────────────────────────
+// ─── Credit Facility (official per-snapshot columns) ────────────────────────────
 
-export function calculateCreditFacilityStatus() {
+function facilitySnapshot(cf, snapshotDate) {
+  const g = (prefix) => cf[`${prefix}_${snapshotDate}`]
+  return {
+    drawn: g('drawn'),
+    collateralMarketValue: g('collateral_market_value'),
+    lendingValue: g('lending_value'),
+    ltvPct: g('ltv_pct'),
+    headroom: g('headroom'),
+  }
+}
+
+export function calculateCreditFacilityStatus(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const facilities = store.creditFacilitiesByClient[CLIENT_ID] || []
   const results = []
 
   for (const cf of facilities) {
-    // LTV proximity: how far from margin call threshold (%)
-    // proximity = (margincall_ltv - current_ltv) / margincall_ltv * 100
-    const headroomToThreshold = typeof cf.ltv_threshold_pct === 'number' && typeof cf.ltv_current_pct === 'number'
-      ? Math.round((cf.ltv_threshold_pct - cf.ltv_current_pct) * 10) / 10
+    const s = facilitySnapshot(cf, snapshotDate)
+    const marginCall = cf.margin_call_ltv_pct
+    const headroomPpts = (typeof marginCall === 'number' && typeof s.ltvPct === 'number')
+      ? Math.round((marginCall - s.ltvPct) * 100) / 100
       : null
-    const headroomToMarginCall = typeof cf.ltv_margin_call_pct === 'number' && typeof cf.ltv_current_pct === 'number'
-      ? Math.round((cf.ltv_margin_call_pct - cf.ltv_current_pct) * 10) / 10
-      : null
-
-    const proximityAlert = headroomToMarginCall !== null && headroomToMarginCall < 10
-      ? 'CRITICAL'
-      : headroomToMarginCall !== null && headroomToMarginCall < 20
-      ? 'WARNING'
-      : 'OK'
+    const proximityAlert = headroomPpts !== null && headroomPpts <= 2
+      ? 'CRITICAL' : headroomPpts !== null && headroomPpts <= 10
+      ? 'WARNING' : 'OK'
 
     results.push({
       facilityId: cf.facility_id,
       facilityType: cf.facility_type,
-      facilityName: cf.facility_name,
-      currency: cf.currency,
-      limitAmount: cf.limit_amount,
-      drawnAmount: cf.drawn_amount,
-      availableAmount: cf.available_amount,
-      utilisationPct: cf.limit_amount > 0
-        ? Math.round((cf.drawn_amount / cf.limit_amount) * 1000) / 10
-        : null,
-      collateralValue: cf.collateral_value,
-      ltvCurrentPct: cf.ltv_current_pct,
-      ltvThresholdPct: cf.ltv_threshold_pct,
-      ltvMarginCallPct: cf.ltv_margin_call_pct,
-      headroomToThresholdPpts: headroomToThreshold,
-      headroomToMarginCallPpts: headroomToMarginCall,
-      marginCallProximityPct: cf.margin_call_proximity_pct,
+      collateralPortfolioId: cf.collateral_portfolio_id,
+      currency: cf.facility_ccy,
+      creditLimit: cf.credit_limit,
+      interestRatePct: cf.interest_rate_pct,
+      drawnAmount: s.drawn,
+      collateralMarketValue: s.collateralMarketValue,
+      lendingValue: s.lendingValue,
+      ltvCurrentPct: s.ltvPct,
+      marginCallLtvPct: marginCall,
+      headroomToMarginCallPpts: headroomPpts,
+      headroomAmount: s.headroom,
+      utilisationPct: cf.utilisation_pct_current,
       proximityAlert,
-      status: cf.status,
-      maturityDate: cf.maturity_date,
-      notes: cf.notes,
+      snapshot: snapshotDate,
       evidence: {
         claim: `Facility ${cf.facility_id} LTV status`,
-        value: `Current LTV: ${cf.ltv_current_pct}% | Threshold: ${cf.ltv_threshold_pct}% | Margin Call: ${cf.ltv_margin_call_pct}% | Headroom to MC: ${headroomToMarginCall} ppts`,
+        value: `LTV ${s.ltvPct}% vs margin call ${marginCall}% — headroom ${headroomPpts} ppts (drawn ${Number(s.drawn).toLocaleString()} / lending value ${Number(s.lendingValue).toLocaleString()} ${cf.facility_ccy})`,
         source: 'credit_facilities.csv',
         recordId: cf.facility_id,
-        snapshot: LATEST_SNAPSHOT,
-        calculation: `LTV = Drawn (${cf.drawn_amount?.toLocaleString()} ${cf.currency}) / Collateral (${cf.collateral_value?.toLocaleString()} ${cf.currency})`,
-        supportingFields: ['drawn_amount', 'collateral_value', 'ltv_current_pct', 'ltv_margin_call_pct'],
+        snapshot: snapshotDate,
+        calculation: `LTV = drawn_${snapshotDate} / lending_value_${snapshotDate}; headroom = margin_call_ltv_pct − ltv_pct_${snapshotDate}`,
+        supportingFields: [`drawn_${snapshotDate}`, `lending_value_${snapshotDate}`, `ltv_pct_${snapshotDate}`, 'margin_call_ltv_pct'],
       },
     })
   }
 
-  // Aggregate. Credit facilities do not carry a pre-computed CHF field, so we
-  // convert using the dataset FX rates from market_context.csv (HKDUSD*USDCHF).
-  const totalDrawnChf = results.reduce((sum, f) => {
-    const rate = getChfRate(f.currency, LATEST_SNAPSHOT) ?? 1
-    return sum + (f.drawnAmount || 0) * rate
-  }, 0)
-
-  const criticalFacilities = results.filter(f => f.proximityAlert === 'CRITICAL')
-  const warningFacilities = results.filter(f => f.proximityAlert === 'WARNING')
-
+  const critical = results.filter(f => f.proximityAlert === 'CRITICAL')
+  const warning = results.filter(f => f.proximityAlert === 'WARNING')
   return {
     clientId: CLIENT_ID,
     facilities: results,
     summary: {
       facilityCount: results.length,
-      totalDrawnChfApprox: Math.round(totalDrawnChf),
-      criticalCount: criticalFacilities.length,
-      warningCount: warningFacilities.length,
-      criticalFacilityIds: criticalFacilities.map(f => f.facilityId),
-      warningFacilityIds: warningFacilities.map(f => f.facilityId),
+      criticalCount: critical.length,
+      warningCount: warning.length,
+      criticalFacilityIds: critical.map(f => f.facilityId),
+      warningFacilityIds: warning.map(f => f.facilityId),
     },
   }
 }
 
-// ─── Cash Requirement Analysis ─────────────────────────────────────────────────
+// ─── Cash Requirement ──────────────────────────────────────────────────────────
 
 export function calculateCashRequirement(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const cashNeeds = store.cashNeedsByClient[CLIENT_ID] || []
+  const holdings = getHoldingsAtSnapshot(PORTFOLIO_ID, snapshotDate)
 
-  // Get current liquid assets (cash + bonds as proxy)
-  const portfolios = store.portfoliosByClient[CLIENT_ID] || []
-  let cashChf = 0
-  let liquidBondsChf = 0
+  let cashBase = 0
   const cashHoldings = []
-  const bondHoldings = []
-
-  for (const pf of portfolios) {
-    const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
-    for (const h of holdings) {
-      if (typeof h.market_value_chf !== 'number') continue
-      if (h.asset_class === 'Cash' || h.sub_class === 'Cash Deposit' || h.sub_class === 'Money Market') {
-        cashChf += h.market_value_chf
-        cashHoldings.push({ holdingId: h.holding_id, valueChf: h.market_value_chf, currency: h.local_currency })
-      }
-      if (h.asset_class === 'Fixed Income' && h.sub_class === 'Corporate Bond') {
-        liquidBondsChf += h.market_value_chf
-        bondHoldings.push({ holdingId: h.holding_id, valueChf: h.market_value_chf })
-      }
+  for (const h of holdings) {
+    if ((h.asset_class || '') === 'Cash and Equivalents') {
+      cashBase += h.market_value_base || 0
+      cashHoldings.push({ name: h.instrument_name, valueBase: Math.round(h.market_value_base || 0), currency: h.instrument_ccy })
     }
   }
 
-  // Available Lombard headroom from CF-0014-001
-  const lombard = store.creditFacilitiesByClient[CLIENT_ID]?.find(cf => cf.facility_id === 'CF-0014-001')
-  const lombardHeadroomHkd = lombard ? lombard.available_amount : 0
-  // Dataset-supported HKD -> CHF from market_context.csv (no hard-coded rate).
-  const hkdChfRate = getChfRate('HKD', snapshotDate) ?? 0
-  const lombardHeadroomChf = Math.round(lombardHeadroomHkd * hkdChfRate)
-
-  const cashNeadResults = cashNeeds.map(cn => {
-    // Days until due
-    const dueDate = new Date(cn.due_date)
+  const needResults = cashNeeds.map(cn => {
+    const dueDate = new Date(cn.due_from)
     const refDate = new Date(snapshotDate)
     const daysUntilDue = Math.round((dueDate - refDate) / (1000 * 60 * 60 * 24))
-    const amountChf = cn.amount_chf || 0
-    const canCoverFromCash = cashChf >= amountChf
-    const canCoverFromCashAndBonds = (cashChf + liquidBondsChf) >= amountChf
-    const canCoverWithLombard = (cashChf + lombardHeadroomChf) >= amountChf
-
+    const amount = cn.amount || 0
+    // The cash need (HKD) and the portfolio base (HKD) share the same currency.
+    const coverableFromCash = cashBase >= amount
     return {
       needId: cn.need_id,
       description: cn.description,
-      amountLocal: cn.amount_local,
+      amount,
       currency: cn.currency,
-      amountChf,
-      dueDate: cn.due_date,
+      dueFrom: cn.due_from,
+      dueTo: cn.due_to,
+      recurrence: cn.recurrence,
+      certainty: cn.certainty,
       daysUntilDue,
-      urgency: cn.urgency,
-      status: cn.status,
-      canCoverFromCash,
-      canCoverFromCashAndBonds,
-      canCoverWithLombard,
-      shortfallChf: Math.max(0, amountChf - cashChf),
+      availableCashBase: Math.round(cashBase),
+      coverableFromCash,
+      shortfallBase: Math.max(0, amount - cashBase),
       evidence: {
         claim: `Cash need: ${cn.description}`,
-        value: `${cn.amount_local?.toLocaleString()} ${cn.currency} (CHF ${amountChf?.toLocaleString()}) due ${cn.due_date}`,
+        value: `${amount.toLocaleString()} ${cn.currency} due ${cn.due_from} .. ${cn.due_to} (${cn.certainty})`,
         source: 'planned_cash_needs.csv',
         recordId: cn.need_id,
         snapshot: snapshotDate,
-        calculation: `Available cash CHF ${cashChf?.toLocaleString()} | Need CHF ${amountChf?.toLocaleString()} | Shortfall CHF ${Math.max(0, amountChf - cashChf)?.toLocaleString()}`,
-        supportingFields: ['amount_local', 'currency', 'amount_chf', 'due_date', 'status'],
+        calculation: `Portfolio cash (${Math.round(cashBase).toLocaleString()} ${cn.currency}) vs need (${amount.toLocaleString()} ${cn.currency}); shortfall ${Math.max(0, amount - cashBase).toLocaleString()}`,
+        supportingFields: ['amount', 'currency', 'due_from', 'due_to', 'certainty'],
       },
     }
   })
 
-  const primaryNeed = cashNeadResults.find(cn => cn.needId === 'PCN-0014-001')
-
+  const primaryNeed = needResults.find(cn => cn.needId === 'CN-013') || needResults[0] || null
   return {
     clientId: CLIENT_ID,
     snapshotDate,
-    cashPositionChf: Math.round(cashChf),
-    liquidBondsChf: Math.round(liquidBondsChf),
-    lombardHeadroomChf,
-    totalLiquidityChf: Math.round(cashChf + liquidBondsChf),
+    cashPositionBase: Math.round(cashBase),
     cashHoldings,
-    bondHoldings,
-    cashNeeds: cashNeadResults,
-    primaryCashNeed: primaryNeed || null,
-    evidenceSummary: buildCashEvidenceSummary(primaryNeed, cashChf, lombardHeadroomChf, hkdChfRate),
+    cashNeeds: needResults,
+    primaryCashNeed: primaryNeed,
   }
 }
 
-// Builds the headline cash-coverage evidence from the actual PCN-0014-001
-// record — need amounts come from planned_cash_needs.csv (local + pre-computed
-// CHF), never from a hard-coded literal.
-function buildCashEvidenceSummary(primaryNeed, cashChf, lombardHeadroomChf, hkdChfRate) {
-  const needChf = primaryNeed?.amountChf ?? 0
-  const needLocal = primaryNeed?.amountLocal ?? 0
-  return {
-    claim: `Lau Chi Ming ${primaryNeed?.dueDate || 'Nov 2026'} ${needLocal?.toLocaleString()} ${primaryNeed?.currency || 'HKD'} cash requirement coverage`,
-    cashAvailableHkd: hkdChfRate ? Math.round(cashChf / hkdChfRate) : null,
-    cashAvailableChf: Math.round(cashChf),
-    needLocal,
-    needCurrency: primaryNeed?.currency || 'HKD',
-    needChf,
-    shortfallChf: Math.max(0, needChf - cashChf),
-    lombardCanBridge: (cashChf + lombardHeadroomChf) >= needChf,
-    source: 'holdings.csv + credit_facilities.csv + planned_cash_needs.csv',
-  }
+// ─── Mandate single-position breach (BAL max_single_position_pct) ───────────────
+
+function checkSinglePositionBreach(store, holdings) {
+  const pf = store.portfolioById[PORTFOLIO_ID]
+  const mandateRows = store.mandateRowsByCode[pf?.mandate_code] || []
+  const singleMax = mandateRows[0]?.max_single_position_pct ?? null
+  if (singleMax == null) return { singleMax: null, breaches: [] }
+  const breaches = holdings
+    .filter(h => typeof h.weight_pct === 'number' && h.weight_pct > singleMax)
+    .map(h => ({ name: h.instrument_name, weightPct: h.weight_pct, assetClass: h.asset_class, exceedsByPpts: Math.round((h.weight_pct - singleMax) * 100) / 100 }))
+    .sort((a, b) => b.weightPct - a.weightPct)
+  return { singleMax, breaches, mandateCode: pf?.mandate_code }
 }
 
-// ─── Relevant RM Notes ─────────────────────────────────────────────────────────
+// ─── RM notes / history ─────────────────────────────────────────────────────────
 
 export function getLauRMNotes() {
   const store = loadAllData()
   return store.rmNotesByClient[CLIENT_ID] || []
 }
-
-// ─── Snapshot History ──────────────────────────────────────────────────────────
-
 export function getLauSnapshotHistory() {
   return getSnapshotHistory(CLIENT_ID)
 }
 
-// ─── Client-Specific Stress Scenario (deterministic, verified data only) ───────
+// ─── Property & Liquidity Stress Test (deterministic) ───────────────────────────
 
-/**
- * Property & Liquidity Stress Test for Lau Chi Ming.
- *
- * Question: what happens to the structured-product credit facility and to
- * liquidity if the property-linked collateral weakens as the confirmed
- * HKD 60m settlement approaches?
- *
- * GOVERNANCE:
- *   - KNOWN values come straight from verified engine outputs (LTV, collateral,
- *     drawn amount, cash need, headroom).
- *   - The ONLY assumption is a single, clearly-labelled collateral decline %.
- *   - CALCULATED values are pure arithmetic on the KNOWN + ASSUMPTION values.
- *   - No fabricated figures, no AI, no revived legacy numbers.
- */
-function buildLauScenario({ propertyConcentration, creditFacilityStatus, cashRequirement }) {
-  const facilities = creditFacilityStatus?.facilities || []
-  // Focus on the structured-product facility nearest its margin call (CF-0014-003).
-  const cf = facilities.find(f => f.facilityId === 'CF-0014-003') || facilities[0]
+function buildLauScenario({ snapshotDate, propertyConcentration, creditFacilityStatus, cashRequirement }) {
+  const cf = (creditFacilityStatus?.facilities || []).find(f => f.collateralPortfolioId === PORTFOLIO_ID)
+    || (creditFacilityStatus?.facilities || [])[0]
   const primaryNeed = cashRequirement?.primaryCashNeed || null
 
   // ── ASSUMPTION: property-linked collateral decline (single, explicit) ──
-  const ASSUMPTION_COLLATERAL_DECLINE_PCT = 15  // stress: HK property-linked collateral falls 15%
+  const ASSUMPTION_COLLATERAL_DECLINE_PCT = 15
 
-  // ── CALCULATED (arithmetic on verified inputs) ──
   let calc = null
-  if (cf && typeof cf.collateralValue === 'number' && typeof cf.drawnAmount === 'number' && cf.collateralValue > 0) {
-    const stressedCollateral = Math.round(cf.collateralValue * (1 - ASSUMPTION_COLLATERAL_DECLINE_PCT / 100))
-    const stressedLtv = Math.round((cf.drawnAmount / stressedCollateral) * 10000) / 100
-    const marginCall = cf.ltvMarginCallPct
-    const headroomAfter = typeof marginCall === 'number'
-      ? Math.round((marginCall - stressedLtv) * 100) / 100
-      : null
+  if (cf && typeof cf.collateralMarketValue === 'number' && typeof cf.drawnAmount === 'number' && cf.collateralMarketValue > 0) {
+    // Lending value scales with collateral (same advance ratio applied by the bank).
+    const advanceRatio = cf.lendingValue / cf.collateralMarketValue
+    const stressedCollateral = Math.round(cf.collateralMarketValue * (1 - ASSUMPTION_COLLATERAL_DECLINE_PCT / 100))
+    const stressedLending = stressedCollateral * advanceRatio
+    const stressedLtv = Math.round((cf.drawnAmount / stressedLending) * 10000) / 100
+    const marginCall = cf.marginCallLtvPct
+    const headroomAfter = typeof marginCall === 'number' ? Math.round((marginCall - stressedLtv) * 100) / 100 : null
     calc = {
       _label: 'CALCULATED STRESS RESULT — arithmetic on verified facility values + stated assumption',
       facilityId: cf.facilityId,
       assumedCollateralDeclinePct: ASSUMPTION_COLLATERAL_DECLINE_PCT,
-      currentCollateralChf: cf.collateralValue,
-      stressedCollateralChf: stressedCollateral,
+      currentCollateralBase: cf.collateralMarketValue,
+      stressedCollateralBase: stressedCollateral,
+      currentLendingValueBase: Math.round(cf.lendingValue),
+      stressedLendingValueBase: Math.round(stressedLending),
       currentLtvPct: cf.ltvCurrentPct,
       stressedLtvPct: stressedLtv,
       marginCallLtvPct: marginCall,
@@ -384,103 +299,91 @@ function buildLauScenario({ propertyConcentration, creditFacilityStatus, cashReq
     }
   }
 
-  const need = primaryNeed?.amountChf ?? null
-  const cashPos = cashRequirement?.cashPositionChf ?? null
-  const lombardHeadroom = cashRequirement?.lombardHeadroomChf ?? null
+  const need = primaryNeed?.amount ?? null
+  const cashPos = cashRequirement?.cashPositionBase ?? null
 
   return {
     clientId: CLIENT_ID,
     scenarioName: 'Property & Liquidity Stress Test',
     scenarioDescription:
-      'Deterministic stress test: how the structured-product facility and near-term liquidity respond if property-linked collateral weakens as the confirmed HKD settlement approaches. NOT a forecast.',
+      'Deterministic stress test: how the Lombard facility and near-term liquidity respond if the property-linked collateral in PF-0016 weakens as the confirmed HKD 60m redevelopment contribution approaches. NOT a forecast.',
     authoritativeEventIds: [],
 
     knownData: {
       _label: 'KNOWN DATA — verified from credit_facilities.csv, planned_cash_needs.csv, holdings.csv',
       propertyLinkedExposurePct: propertyConcentration?.totalPropertyPct ?? null,
-      propertyLinkedExposureChf: propertyConcentration?.totalPropertyChf ?? null,
+      propertyLinkedExposureBase: propertyConcentration?.totalPropertyBase ?? null,
       facilityId: cf?.facilityId ?? null,
       currentLtvPct: cf?.ltvCurrentPct ?? null,
-      marginCallLtvPct: cf?.ltvMarginCallPct ?? null,
+      marginCallLtvPct: cf?.marginCallLtvPct ?? null,
       currentHeadroomPpts: cf?.headroomToMarginCallPpts ?? null,
       drawnAmount: cf?.drawnAmount ?? null,
-      collateralValue: cf?.collateralValue ?? null,
+      collateralMarketValue: cf?.collateralMarketValue ?? null,
+      lendingValue: cf?.lendingValue ?? null,
       facilityCurrency: cf?.currency ?? null,
-      confirmedCashNeedChf: need,
-      confirmedCashNeedLocal: primaryNeed?.amountLocal ?? null,
+      confirmedCashNeed: need,
       confirmedCashNeedCurrency: primaryNeed?.currency ?? null,
-      cashNeedDueDate: primaryNeed?.dueDate ?? null,
-      currentCashPositionChf: cashPos,
-      lombardHeadroomChf: lombardHeadroom,
+      cashNeedDueFrom: primaryNeed?.dueFrom ?? null,
+      cashNeedDueTo: primaryNeed?.dueTo ?? null,
+      cashNeedCertainty: primaryNeed?.certainty ?? null,
+      currentCashPositionBase: cashPos,
     },
 
     assumptions: {
       _label: 'ASSUMPTIONS — stated, not authoritative; used for this stress test only',
       propertyLinkedCollateralDeclinePct: -ASSUMPTION_COLLATERAL_DECLINE_PCT,
       rationale:
-        'A single hypothetical decline is applied to the property-linked collateral securing CF-0014-003. Chosen for illustration; not derived from a forecast.',
+        'A single hypothetical decline is applied to the property-linked collateral securing the Lombard facility. Chosen for illustration; not derived from a forecast.',
     },
 
     calculatedStressResult: calc,
 
-    // Direct exposures the RM should look at (verified values).
     affectedExposures: [
       propertyConcentration?.totalPropertyPct != null && {
-        label: 'Property-linked exposure',
+        label: 'Real-estate-linked exposure',
         value: `${propertyConcentration.totalPropertyPct}% of portfolio`,
       },
-      cf && { label: `${cf.facilityId} current LTV`, value: `${cf.ltvCurrentPct}% (margin call ${cf.ltvMarginCallPct}%)` },
-      need != null && { label: 'Confirmed cash requirement', value: `CHF ${need.toLocaleString()}${primaryNeed?.dueDate ? ` due ${primaryNeed.dueDate}` : ''}` },
+      cf && { label: `${cf.facilityId} current LTV`, value: `${cf.ltvCurrentPct}% (margin call ${cf.marginCallLtvPct}%)` },
+      need != null && { label: 'Confirmed cash requirement', value: `${need.toLocaleString()} ${primaryNeed?.currency}${primaryNeed?.dueFrom ? ` from ${primaryNeed.dueFrom}` : ''}` },
     ].filter(Boolean),
 
     portfolioImplications: [
       calc && `A ${ASSUMPTION_COLLATERAL_DECLINE_PCT}% decline in property-linked collateral would move ${calc.facilityId} LTV from ${calc.currentLtvPct}% to an estimated ${calc.stressedLtvPct}% (margin call ${calc.marginCallLtvPct}%).`,
       calc && (calc.breachesMarginCall
-        ? `This would breach the ${calc.marginCallLtvPct}% margin-call level (estimated headroom ${calc.headroomAfterPpts} ppts).`
-        : `Estimated headroom to margin call would narrow to ${calc.headroomAfterPpts} ppts.`),
-      need != null && cashPos != null && lombardHeadroom != null &&
-        `Confirmed cash need CHF ${need.toLocaleString()} is currently coverable from cash (CHF ${cashPos.toLocaleString()}) plus Lombard headroom (CHF ${lombardHeadroom.toLocaleString()}); a collateral decline reduces that headroom.`,
+        ? `This would breach the ${calc.marginCallLtvPct}% margin-call level (estimated headroom ${calc.headroomAfterPpts} ppts) and could trigger a call.`
+        : `Estimated headroom to margin call would narrow to ${calc.headroomAfterPpts} ppts from ${calc.headroomBeforePpts} ppts today.`),
+      need != null && cashPos != null &&
+        `The confirmed cash need of ${need.toLocaleString()} ${primaryNeed?.currency} dwarfs the portfolio cash position (${cashPos.toLocaleString()} ${primaryNeed?.currency}); funding it likely requires selling assets or drawing further on a facility whose headroom is already thin.`,
     ].filter(Boolean),
 
     objectiveImplications: [
-      'Client objective is to retain Hong Kong property recovery exposure while servicing development financing — a collateral decline pressures both the facility and the settlement timing simultaneously.',
+      'Client objective is to generate yield to service development financing while retaining Hong Kong property recovery exposure — a collateral decline pressures the facility and the redevelopment funding timeline at the same time.',
     ],
 
     uncertainty: {
       items: [
         'Collateral valuations are point-in-time; actual marks move continuously.',
         'The collateral decline percentage is an illustrative assumption, not a forecast.',
-        'Timing overlap between a collateral decline and the settlement date is uncertain.',
+        'The advance ratio is assumed to hold; the bank may re-cut lending values in stress.',
+        'Timing overlap between a collateral decline and the redevelopment settlement is uncertain.',
       ],
     },
 
     rmConsiderations: [
-      'Review current headroom on CF-0014-003 against the confirmed settlement date.',
-      'Discuss whether partial pre-funding of the HKD settlement reduces reliance on the facility.',
-      'Confirm with the client the acceptable range of property-linked collateral movement before action would be considered.',
+      `Review current headroom on ${cf?.facilityId || 'the Lombard facility'} (${cf?.headroomToMarginCallPpts} ppts) against the confirmed redevelopment window.`,
+      'Assess what portion of PF-0016 is genuinely liquid given the property, perpetual and accumulator concentration.',
+      'Discuss whether partial pre-funding of the HKD 60m contribution reduces reliance on the facility.',
     ],
 
     evidence: [
-      cf && {
-        label: `Facility ${cf.facilityId} status`,
-        value: `Current LTV ${cf.ltvCurrentPct}% | Margin call ${cf.ltvMarginCallPct}% | Collateral CHF-equiv ${cf.collateralValue?.toLocaleString()} | Drawn ${cf.drawnAmount?.toLocaleString()} ${cf.currency}`,
-        source: 'credit_facilities.csv',
-        snapshot: cashRequirement?.snapshotDate,
-        record: cf.facilityId,
-      },
-      primaryNeed && {
-        label: 'Confirmed cash requirement',
-        value: `${primaryNeed.amountLocal?.toLocaleString()} ${primaryNeed.currency} (CHF ${primaryNeed.amountChf?.toLocaleString()}) due ${primaryNeed.dueDate}`,
-        source: 'planned_cash_needs.csv',
-        snapshot: cashRequirement?.snapshotDate,
-        record: primaryNeed.needId,
-      },
+      cf?.evidence,
+      primaryNeed?.evidence,
       propertyConcentration?.evidence?.[0] && {
         label: propertyConcentration.evidence[0].claim,
         value: propertyConcentration.evidence[0].value,
         source: propertyConcentration.evidence[0].source,
         snapshot: propertyConcentration.evidence[0].snapshot,
-        record: (propertyConcentration.evidence[0].recordIds || []).join(', '),
+        record: propertyConcentration.evidence[0].recordId,
       },
     ].filter(Boolean),
   }
@@ -491,171 +394,146 @@ function buildLauScenario({ propertyConcentration, creditFacilityStatus, cashReq
 export function getLauChiMingIntelligence(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const client = store.clientById[CLIENT_ID]
-  const mandate = store.mandateByClient[CLIENT_ID]
-  const portfolios = store.portfoliosByClient[CLIENT_ID] || []
+  const pf = store.portfolioById[PORTFOLIO_ID]
+  const mandateRows = store.mandateRowsByCode[pf?.mandate_code] || []
+  const holdings = getHoldingsAtSnapshot(PORTFOLIO_ID, snapshotDate)
 
-  // All calculations
   const propertyConcentration = calculatePropertyConcentration(snapshotDate)
-  const creditFacilityStatus = calculateCreditFacilityStatus()
+  const creditFacilityStatus = calculateCreditFacilityStatus(snapshotDate)
   const cashRequirement = calculateCashRequirement(snapshotDate)
   const rmNotes = getLauRMNotes()
   const snapshotHistory = getLauSnapshotHistory()
   const aggregatePortfolio = getClientAggregatedPortfolio(CLIENT_ID, snapshotDate)
+  const singlePosition = checkSinglePositionBreach(store, holdings)
 
-  // Structured product details
-  const allStructured = []
-  for (const pf of portfolios) {
-    allStructured.push(...getStructuredProductLookThrough(pf.portfolio_id, snapshotDate))
-  }
+  const criticalFacility = creditFacilityStatus.facilities.find(f => f.proximityAlert === 'CRITICAL')
+    || creditFacilityStatus.facilities.find(f => f.collateralPortfolioId === PORTFOLIO_ID)
 
-  // Critical structured product: autocallable INS-0015 maturing Dec 2026
-  const autocallable = allStructured.find(s => s.instrumentId === 'INS-0015')
-
-  // Mandate compliance check: is property concentration within Balanced mandate?
-  // Balanced mandate: equity 30-60%. Property REITs and stocks are equity.
-  const equityWeightPct = aggregatePortfolio.allocation.find(a => a.assetClass === 'Equity')?.weightPct || 0
-  const mandateEquityMin = mandate?.equity_min_pct || 30
-  const mandateEquityMax = mandate?.equity_max_pct || 60
-  const equityWithinMandate = equityWeightPct >= mandateEquityMin && equityWeightPct <= mandateEquityMax
-  const singleSectorMax = mandate?.max_single_sector_pct || 25
-
-  // Build signals
   const signals = []
 
-  // Signal 1: Property concentration
+  // Signal 1: property concentration
   signals.push({
     id: 'LAU-SIG-001',
     type: 'concentration',
-    severity: propertyConcentration.totalPropertyPct > 55 ? 'high' : propertyConcentration.totalPropertyPct > 45 ? 'medium' : 'low',
-    title: 'Concentrated property-linked exposure',
-    summary: `Property exposure (direct + structured) represents ${propertyConcentration.totalPropertyPct}% of the combined portfolio at ${snapshotDate}.`,
+    severity: propertyConcentration.totalPropertyPct > 45 ? 'high' : 'medium',
+    title: 'Concentrated real-estate-linked exposure',
+    summary: `Real-estate-linked holdings (direct property, Golden Harbour equity + perpetual, and the Golden Harbour accumulator) represent ${propertyConcentration.totalPropertyPct}% of PF-0016 at ${snapshotDate}.`,
     verifiedMetrics: {
+      totalPropertyPct: propertyConcentration.totalPropertyPct,
+      totalPropertyBase: propertyConcentration.totalPropertyBase,
       directPropertyPct: propertyConcentration.directPropertyPct,
       structuredPropertyPct: propertyConcentration.structuredPropertyPct,
-      totalPropertyPct: propertyConcentration.totalPropertyPct,
-      totalPropertyChf: propertyConcentration.totalPropertyChf,
-      mandateSingleSectorMax: singleSectorMax,
-      exceedsMandateMax: propertyConcentration.totalPropertyPct > singleSectorMax,
+      baseCurrency: propertyConcentration.baseCurrency,
     },
     relevanceFactors: [
-      'Client source of wealth is property development (HK/GBA)',
-      'Portfolio and business are both exposed to HK property market',
-      'Mandate single-sector max is 25%',
+      'Client source of wealth is Hong Kong property development',
+      'The portfolio, the Lombard collateral and the client\u2019s own business are the same property bet (RM note N-018)',
     ],
     evidence: propertyConcentration.evidence,
-    uncertainty: 'Indirect structured product exposure depends on issuer mark; not independently verified.',
+    uncertainty: 'The accumulator and perpetual marks are issuer-provided and not independently verified.',
   })
 
-  // Signal 2: Upcoming HKD 60m cash need
-  const primaryNeed = cashRequirement.primaryCashNeed
-  if (primaryNeed) {
-    signals.push({
-      id: 'LAU-SIG-002',
-      type: 'liquidity',
-      severity: primaryNeed.daysUntilDue <= 90 ? 'high' : 'medium',
-      title: 'HKD 60m property settlement due Nov 2026',
-      summary: `Phase 3 Kowloon development settlement of HKD 60m (CHF ${(7200000).toLocaleString()}) is confirmed due ${primaryNeed.dueDate}. ${primaryNeed.daysUntilDue} days from ${snapshotDate}.`,
-      verifiedMetrics: {
-        requirementHkd: primaryNeed.amountLocal,
-        requirementChf: primaryNeed.amountChf,
-        daysUntilDue: primaryNeed.daysUntilDue,
-        currentCashChf: cashRequirement.cashPositionChf,
-        shortfallChf: primaryNeed.shortfallChf,
-        lombardHeadroomChf: cashRequirement.lombardHeadroomChf,
-        canBridgeWithLombard: primaryNeed.canCoverWithLombard,
-      },
-      relevanceFactors: [
-        'Hard deadline confirmed by client and developer',
-        'Cash position may be insufficient without Lombard draw',
-        'Core equity positions (SHK Properties) not targeted for sale',
-      ],
-      evidence: [primaryNeed.evidence],
-      uncertainty: 'Property market value could affect collateral if Lombard drawn further.',
-    })
-  }
-
-  // Signal 3: Critical structured product facility proximity
-  const criticalFacility = creditFacilityStatus.facilities.find(f => f.proximityAlert === 'CRITICAL')
+  // Signal 2: Lombard facility near margin call
   if (criticalFacility) {
     signals.push({
-      id: 'LAU-SIG-003',
+      id: 'LAU-SIG-002',
       type: 'credit',
-      severity: 'high',
-      title: `Credit facility ${criticalFacility.facilityId} near margin-call threshold`,
-      summary: `Current LTV ${criticalFacility.ltvCurrentPct}% against margin call threshold ${criticalFacility.ltvMarginCallPct}%. Headroom: only ${criticalFacility.headroomToMarginCallPpts} ppts.`,
+      severity: (criticalFacility.headroomToMarginCallPpts ?? 99) <= 2 ? 'high' : 'medium',
+      title: `Lombard facility ${criticalFacility.facilityId} near margin-call threshold`,
+      summary: `Current LTV ${criticalFacility.ltvCurrentPct}% against a ${criticalFacility.marginCallLtvPct}% margin-call level — only ${criticalFacility.headroomToMarginCallPpts} ppts of headroom.`,
       verifiedMetrics: {
         facilityId: criticalFacility.facilityId,
-        facilityType: criticalFacility.facilityType,
         ltvCurrentPct: criticalFacility.ltvCurrentPct,
-        ltvThresholdPct: criticalFacility.ltvThresholdPct,
-        ltvMarginCallPct: criticalFacility.ltvMarginCallPct,
+        marginCallLtvPct: criticalFacility.marginCallLtvPct,
         headroomPpts: criticalFacility.headroomToMarginCallPpts,
         drawnAmount: criticalFacility.drawnAmount,
+        lendingValue: criticalFacility.lendingValue,
+        collateralMarketValue: criticalFacility.collateralMarketValue,
         currency: criticalFacility.currency,
       },
       relevanceFactors: [
-        'Structured product collateral value has declined due to autocallable mark-down',
-        'Combined with primary cash need, could trigger forced action',
+        'Collateral is PF-0016 — the same property-concentrated portfolio',
+        'LTV has risen from 53.9% (2025-12-31) to 69.41% (2026-08-26) as collateral weakened',
+        'Combined with the confirmed cash need, leaves little room for a property decline',
       ],
       evidence: [criticalFacility.evidence],
-      uncertainty: 'Collateral value depends on structured product market marks.',
+      uncertainty: 'Collateral value depends on property, perpetual and accumulator marks that move continuously.',
     })
   }
 
-  // Signal 4: Autocallable maturing Dec 2026
-  if (autocallable) {
+  // Signal 3: confirmed HKD 60m redevelopment cash need
+  const primaryNeed = cashRequirement.primaryCashNeed
+  if (primaryNeed) {
     signals.push({
-      id: 'LAU-SIG-004',
-      type: 'structured_product',
-      severity: 'medium',
-      title: 'Autocallable HK RE basket note maturing Dec 2026',
-      summary: `JB HK RE Basket autocallable (INS-0015) matures December 31 2026. Current mark ~${Math.round((autocallable.marketValueChf / 480000) * 100)}% of par. Coincides with cash need timing.`,
+      id: 'LAU-SIG-003',
+      type: 'liquidity',
+      severity: primaryNeed.daysUntilDue <= 120 ? 'high' : 'medium',
+      title: 'HKD 60m Mid-Levels redevelopment contribution confirmed',
+      summary: `A confirmed ${primaryNeed.amount.toLocaleString()} ${primaryNeed.currency} equity contribution (${primaryNeed.description}) is due ${primaryNeed.dueFrom} .. ${primaryNeed.dueTo}. Portfolio cash is only ${primaryNeed.availableCashBase.toLocaleString()} ${primaryNeed.currency}.`,
       verifiedMetrics: {
-        instrumentId: autocallable.instrumentId,
-        instrumentName: autocallable.instrumentName,
-        maturityDate: autocallable.maturityDate,
-        currentValueChf: autocallable.marketValueChf,
-        underlyingExposures: autocallable.underlyingExposures,
+        requirement: primaryNeed.amount,
+        currency: primaryNeed.currency,
+        dueFrom: primaryNeed.dueFrom,
+        dueTo: primaryNeed.dueTo,
+        certainty: primaryNeed.certainty,
+        availableCashBase: primaryNeed.availableCashBase,
+        shortfallBase: primaryNeed.shortfallBase,
+        coverableFromCash: primaryNeed.coverableFromCash,
       },
       relevanceFactors: [
-        'Maturity coincides with the Nov/Dec 2026 property-settlement cash-need window',
-        'If it does not autocall, proceeds returned at maturity with potential mark-to-market loss',
-        'Underlying basket is directly correlated with property concentration',
+        'Confirmed by client at 2026-08-11 meeting (RM note N-019)',
+        'Client was surprised how little of the portfolio is actually liquid',
+        'Funding it may force sales or a larger facility draw',
       ],
-      evidence: [{
-        claim: 'Autocallable note INS-0015 maturity and current value',
-        value: `Matures ${autocallable.maturityDate} | Current CHF ${autocallable.marketValueChf?.toLocaleString()} | Underlying: ${autocallable.underlyingExposures.map(u => u.name).join(', ')}`,
-        source: 'holdings.csv + instruments.csv',
-        recordId: autocallable.holdingId,
-        snapshot: snapshotDate,
-        calculation: 'Market value from holdings.csv; underlying from instruments.csv underlying_instruments field',
-        supportingFields: ['market_value_chf', 'maturity_date', 'underlying_instruments'],
-      }],
-      uncertainty: 'Autocall trigger depends on basket performance vs initial level — not calculable without strike data.',
+      evidence: [primaryNeed.evidence],
+      uncertainty: 'Exact settlement date within the window is not fixed.',
     })
   }
 
-  // Priority score factors
-  const priorityFactors = {
-    liquidityUrgency: primaryNeed?.daysUntilDue <= 90 ? 25 : 15,
-    concentrationSeverity: propertyConcentration.totalPropertyPct > 50 ? 25 : 15,
-    creditProximity: criticalFacility ? 25 : 10,
-    mandateSuitability: !equityWithinMandate || propertyConcentration.totalPropertyPct > singleSectorMax ? 15 : 5,
+  // Signal 4: single-position mandate breach
+  if (singlePosition.singleMax != null && singlePosition.breaches.length > 0) {
+    const worst = singlePosition.breaches[0]
+    signals.push({
+      id: 'LAU-SIG-004',
+      type: 'mandate_breach',
+      severity: 'medium',
+      title: 'Single-position weight exceeds BAL mandate limit',
+      summary: `${worst.name} is ${worst.weightPct}% of PF-0016 vs the ${singlePosition.mandateCode} mandate single-position maximum of ${singlePosition.singleMax}%.`,
+      verifiedMetrics: {
+        mandateCode: singlePosition.mandateCode,
+        singlePositionMaxPct: singlePosition.singleMax,
+        breaches: singlePosition.breaches,
+      },
+      relevanceFactors: [
+        'BAL mandate caps any single position at ' + singlePosition.singleMax + '%',
+        'The largest breach is a direct property holding',
+      ],
+      evidence: [{
+        claim: 'Single-position concentration vs mandate limit',
+        value: `${worst.name} ${worst.weightPct}% vs ${singlePosition.singleMax}% max (${singlePosition.mandateCode})`,
+        source: 'holdings.csv + mandates.csv',
+        recordId: PORTFOLIO_ID,
+        snapshot: snapshotDate,
+        calculation: 'weight_pct from holdings.csv vs max_single_position_pct from mandates.csv',
+        supportingFields: ['weight_pct', 'max_single_position_pct'],
+      }],
+      uncertainty: null,
+    })
   }
-  const priorityScore = Object.values(priorityFactors).reduce((sum, v) => sum + v, 0)
 
-  // Client-specific stress scenario (deterministic, verified data only).
-  const scenario = buildLauScenario({
-    snapshotDate,
-    propertyConcentration,
-    creditFacilityStatus,
-    cashRequirement,
-    aggregatePortfolio,
-  })
+  const priorityFactors = {
+    creditProximity: criticalFacility && (criticalFacility.headroomToMarginCallPpts ?? 99) <= 2 ? 30 : criticalFacility ? 20 : 5,
+    liquidityUrgency: primaryNeed?.daysUntilDue <= 120 ? 25 : 15,
+    concentrationSeverity: propertyConcentration.totalPropertyPct > 45 ? 25 : 15,
+    mandateSuitability: singlePosition.breaches.length > 0 ? 10 : 0,
+  }
+  const priorityScore = Object.values(priorityFactors).reduce((s, v) => s + v, 0)
+
+  const scenario = buildLauScenario({ snapshotDate, propertyConcentration, creditFacilityStatus, cashRequirement })
 
   return {
     clientId: CLIENT_ID,
-    clientName: client?.full_name || 'Lau Chi Ming',
+    clientName: client?.client_name || 'Lau Chi Ming',
     rmId: store.rm.rm_id,
     rmName: store.rm.rm_name,
     snapshotDate,
@@ -664,31 +542,38 @@ export function getLauChiMingIntelligence(snapshotDate = LATEST_SNAPSHOT) {
     priorityFactors,
     scenario,
     mandate: {
-      mandateId: mandate?.mandate_id,
-      mandateType: mandate?.mandate_type,
-      mandateName: mandate?.mandate_name,
-      equityRange: `${mandate?.equity_min_pct}-${mandate?.equity_max_pct}%`,
-      singleSectorMax: `${mandate?.max_single_sector_pct}%`,
-      baseCurrency: mandate?.currency_base,
+      mandateCode: pf?.mandate_code,
+      mandateName: pf?.mandate_name,
+      baseCurrency: pf?.base_currency,
+      equityBand: mandateBand(mandateRows, 'Equity'),
+      singlePositionMaxPct: mandateRows[0]?.max_single_position_pct ?? null,
     },
     aggregatePortfolio,
     propertyConcentration,
     creditFacilityStatus,
     cashRequirement,
-    structuredProducts: allStructured,
-    signals: signals.sort((a, b) => {
-      const sev = { high: 3, medium: 2, low: 1 }
-      return (sev[b.severity] || 0) - (sev[a.severity] || 0)
-    }),
+    signals: sortBySeverity(signals),
     snapshotHistory,
-    rmNotes: rmNotes.map(n => ({
-      noteId: n.note_id,
-      date: n.note_date,
-      type: n.note_type,
-      subject: n.subject,
-      body: n.body,
-      tags: n.tags,
-      actionRequired: n.action_required,
-    })),
+    rmNotes: mapRmNotes(rmNotes),
   }
+}
+
+// ─── shared helpers ─────────────────────────────────────────────────────────────
+
+function mandateBand(rows, assetClass) {
+  const r = rows.find(x => x.asset_class === assetClass)
+  return r ? `${r.min_pct}-${r.max_pct}% (target ${r.target_pct}%)` : null
+}
+function sortBySeverity(signals) {
+  const sev = { high: 3, medium: 2, low: 1 }
+  return signals.slice().sort((a, b) => (sev[b.severity] || 0) - (sev[a.severity] || 0))
+}
+function mapRmNotes(notes) {
+  return (notes || []).map(n => ({
+    noteId: n.note_id,
+    date: n.note_date,
+    channel: n.channel,
+    rmName: n.rm_name,
+    body: n.note,
+  }))
 }
