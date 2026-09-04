@@ -1,0 +1,51 @@
+instrument_id,isin,ticker,name,asset_class,sub_class,sector,geography,currency,issuer,maturity_date,coupon_rate,credit_rating,exchange,is_listed,is_structured,underlying_instruments,notes
+INS-0001,HK2840000752,2840 HK,iShares MSCI Hong Kong ETF,Equity,ETF,Diversified,Hong Kong,HKD,BlackRock,,,,,Y,N,,HK broad market exposure
+INS-0002,HK0000004322,,Link REIT,Equity,REIT,Real Estate,Hong Kong,HKD,Link Asset Management,,,,,Y,N,,Largest REIT in Asia
+INS-0003,HK0016000132,,Sun Hung Kai Properties,Equity,Single Stock,Real Estate,Hong Kong,HKD,Sun Hung Kai Properties,,,,,Y,N,,Major HK property developer
+INS-0004,HK0101000177,,Hang Lung Properties,Equity,Single Stock,Real Estate,Hong Kong / China,HKD,Hang Lung Properties,,,,,Y,N,,HK + Mainland commercial property
+INS-0005,XS2234567891,,Julius Baer HK Property Note 2027,Structured,Capital Protected Note,Real Estate,Hong Kong,HKD,Julius Baer,2027-06-30,3.25,BBB+,,N,Y,INS-0003;INS-0004,Underlying: SHK Properties + Hang Lung — capital protected at 95%
+INS-0006,HK0941000018,,China Mobile Ltd,Equity,Single Stock,Telecoms,Hong Kong / China,HKD,China Mobile,,,,,Y,N,,
+INS-0007,US4592001014,,IBM Corporation,Equity,Single Stock,Technology,United States,USD,IBM Corp,,,,,Y,N,,
+INS-0008,XS1987654321,,HSBC HK USD 4.5% 2028,Fixed Income,Corporate Bond,Financial,Hong Kong,USD,HSBC Holdings,2028-03-15,4.50,A-,,N,N,,
+INS-0009,XS1876543210,,MTR Corporation USD 3.8% 2029,Fixed Income,Corporate Bond,Infrastructure,Hong Kong,USD,MTR Corporation,2029-09-01,3.80,AA-,,N,N,,
+INS-0010,HK0000050748,,Hong Kong Exchanges and Clearing,Equity,Single Stock,Financial Services,Hong Kong,HKD,HKEX,,,,,Y,N,,
+INS-0011,,,Pavilion Equity Partners Fund IV,Alternative,Private Equity Fund,Diversified,Asia Pacific,USD,Pavilion Equity,,,,,N,N,,Closed-end PE — vintage 2021
+INS-0012,,,HK Prime Office Co-Investment,Alternative,Real Estate Private,Real Estate,Hong Kong,HKD,Lau Family Trust Structure,,,,,,N,N,,Direct co-investment — Central HK office
+INS-0013,HK0011000045,,Hang Seng Bank,Equity,Single Stock,Financial Services,Hong Kong,HKD,Hang Seng Bank,,,,,Y,N,,
+INS-0014,US38141G1040,,Goldman Sachs Group,Equity,Single Stock,Financial Services,United States,USD,Goldman Sachs,,,,,Y,N,,
+INS-0015,XS2345678902,,JB Structured Note — HK RE Basket 2026,Structured,Autocallable Note,Real Estate,Hong Kong,HKD,Julius Baer,2026-12-31,0.00,,,N,Y,INS-0003;INS-0004;INS-0002,Autocallable linked to HK RE basket — maturity Dec 2026
+INS-0016,,,Cathay Pacific Airways,Equity,Single Stock,Transportation,Hong Kong,HKD,Cathay Pacific,,,,,Y,N,,
+INS-0017,,,Henderson Land Development,Equity,Single Stock,Real Estate,Hong Kong,HKD,Henderson Land,,,,,Y,N,,HK property developer
+INS-0018,XS2109876543,,DP World USD 4.0% 2030,Fixed Income,Corporate Bond,Shipping / Logistics,UAE,USD,DP World,2030-05-15,4.00,BBB,,N,N,,Dubai Ports — shipping/logistics exposure
+INS-0019,US29260Q1094,,Energy Transfer LP,Equity,MLP,Energy,United States,USD,Energy Transfer,,,,,Y,N,,US midstream energy
+INS-0020,,,Gulf Energy Infrastructure Fund,Alternative,Private Infrastructure Fund,Energy,Gulf / MENA,USD,Gulf Capital,,,,,,N,N,,Private infrastructure — GCC energy assets
+INS-0021,US5949181045,,Microsoft Corporation,Equity,Single Stock,Technology,United States,USD,Microsoft Corp,,,,,Y,N,,
+INS-0022,US0231351067,,Amazon.com Inc,Equity,Single Stock,Technology / Consumer,United States,USD,Amazon.com,,,,,Y,N,,
+INS-0023,US02079K3059,,Alphabet Inc Class A,Equity,Single Stock,Technology,United States,USD,Alphabet,,,,,Y,N,,
+INS-0024,XS2456789013,,JB Shipping & Energy Diversified Note 2027,Structured,Principal At Risk Note,Shipping / Energy,Global,USD,Julius Baer,2027-03-31,0.00,,,N,Y,INS-0018;INS-0019;INS-0020,Linked to shipping/energy basket — no capital protection
+INS-0025,,,Asia Credit Opportunities Fund,Alternative,Credit Fund,Diversified Credit,Asia,USD,JB Asset Management,,,,,,N,N,,Asia IG and HY credit
+INS-0026,DE0005140008,,Deutsche Bank AG,Equity,Single Stock,Financial Services,Germany,EUR,Deutsche Bank,,,,,Y,N,,
+INS-0027,XS1654321098,,EUR Government Bond Ladder 2026-2031,Fixed Income,Government Bond Ladder,Sovereign,Europe,EUR,Various Sovereigns,2031-12-31,2.10,AAA-AA,,N,N,,Laddered EUR sovereign exposure
+INS-0028,XS1543210987,,USD Investment Grade Bond Fund,Fixed Income,Bond Fund,Investment Grade,Global,USD,JB Asset Management,,,,,,N,N,,
+INS-0029,,,Equity Long/Short Fund,Alternative,Hedge Fund,Equity Long/Short,Global,USD,Third Rock Capital,,,,,,N,N,,
+INS-0030,,,Global Infrastructure Fund,Alternative,Private Infrastructure,Infrastructure,Global,USD,Macquarie,,,,,,N,N,,
+INS-0031,US4592001014,,Nvidia Corporation,Equity,Single Stock,Technology / Semiconductors,United States,USD,Nvidia Corp,,,,,Y,N,,
+INS-0032,US8740391003,,Taiwan Semiconductor ADR,Equity,Single Stock,Technology / Semiconductors,Taiwan,USD,TSMC,,,,,Y,N,,
+INS-0033,,,Samsung Electronics,Equity,Single Stock,Technology,South Korea,KRW,Samsung,,,,,Y,N,,
+INS-0034,,,Korea Semiconductor Index ETF,Equity,ETF,Technology / Semiconductors,South Korea,KRW,KB Asset Management,,,,,Y,N,,
+INS-0035,US0378331005,,Apple Inc,Equity,Single Stock,Technology,United States,USD,Apple Inc,,,,,Y,N,,
+INS-0036,,,JB Conservative Multi-Asset Fund,Multi-Asset,Fund,Diversified,Global,EUR,JB Asset Management,,,,,,N,N,,Conservative MA — 20% equity target
+INS-0037,,,Petrochemical Equity Basket Note,Structured,Participation Note,Energy / Chemicals,Global,USD,Julius Baer,2027-09-30,0.00,,,N,Y,INS-0019,,Linked to energy/petrochemical basket
+INS-0038,XS1432109876,,Abu Dhabi Government USD 3.125% 2030,Fixed Income,Government Bond,Sovereign,UAE,USD,Abu Dhabi Government,2030-09-15,3.125,AA,,N,N,,
+INS-0039,XS1321098765,,Saudi Aramco Sukuk USD 3.5% 2029,Fixed Income,Sukuk,Energy,Saudi Arabia,USD,Saudi Aramco,2029-04-01,3.50,A+,,N,N,,
+INS-0040,,,Global Diversified Equity Fund,Equity,Fund,Diversified,Global,USD,JB Asset Management,,,,,,N,N,,
+INS-0041,,,Emerging Market Debt Fund,Fixed Income,Fund,Sovereign / Corporate,Emerging Markets,USD,JB Asset Management,,,,,,N,N,,
+INS-0042,,,EUR Corporate Bond Fund,Fixed Income,Fund,Investment Grade,Europe,EUR,JB Asset Management,,,,,,N,N,,
+INS-0043,,,Clean Energy Transition Fund,Equity,Fund,Clean Energy / ESG,Global,USD,JB Asset Management,,,,,,N,N,,
+INS-0044,,,JB MENA Equity Fund,Equity,Fund,Diversified,MENA,USD,JB Asset Management,,,,,,N,N,,
+INS-0045,,,Global Healthcare Leaders ETF,Equity,ETF,Healthcare,Global,USD,Vanguard,,,,,,Y,N,,
+INS-0046,,,Asia Pacific Equity Fund,Equity,Fund,Diversified,Asia Pacific,USD,JB Asset Management,,,,,,N,N,,
+INS-0047,,,CHF Money Market Fund,Cash Equivalent,Money Market,Cash,Switzerland,CHF,JB Asset Management,,,,,,N,N,,
+INS-0048,,,HKD Cash Deposit,Cash Equivalent,Cash Deposit,Cash,Hong Kong,HKD,Julius Baer,,,,,,N,N,,
+INS-0049,,,USD Cash Deposit,Cash Equivalent,Cash Deposit,Cash,Global,USD,Julius Baer,,,,,,N,N,,
+INS-0050,,,EUR Cash Deposit,Cash Equivalent,Cash Deposit,Cash,Europe,EUR,Julius Baer,,,,,,N,N,,

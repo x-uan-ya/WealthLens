@@ -1,0 +1,11 @@
+commitment_id,client_id,portfolio_id,instrument_id,commitment_type,total_committed_amount,currency,amount_called,amount_remaining,expected_call_date,status,notes
+CMT-0014-001,CL-0014,PF-0014A,INS-0011,Private Equity,5000000,USD,4200000,800000,2027-06-30,Active,Pavilion PE Fund IV — residual uncalled commitment
+CMT-0019-001,CL-0019,PF-0019B,INS-0020,Private Infrastructure,30000000,USD,22000000,8000000,2027-03-31,Active,Gulf Energy Infrastructure Fund — residual commitment
+CMT-0019-002,CL-0019,PF-0019B,INS-0029,Hedge Fund,15000000,USD,12000000,3000000,2026-12-31,Active,Equity L/S Fund — residual
+CMT-0019-003,CL-0019,PF-0019B,INS-0041,Fund,20000000,USD,20000000,0,,,Fully Drawn,EM Debt Fund — fully invested
+CMT-0005-001,CL-0005,PF-0005,INS-0020,Private Infrastructure,25000000,USD,20000000,5000000,2026-10-31,Active,Gulf Energy Infrastructure Fund — capital call anticipated Oct 2026
+CMT-0010-001,CL-0010,PF-0010,INS-0011,Private Equity,15000000,USD,12000000,3000000,2026-11-30,Active,Pavilion PE Fund IV — capital call expected
+CMT-0006-001,CL-0006,PF-0006,INS-0030,Private Infrastructure,20000000,USD,15000000,5000000,2027-01-31,Active,Global Infrastructure Fund — residual commitment
+CMT-0012-001,CL-0012,PF-0012,INS-0030,Private Infrastructure,12000000,EUR,9000000,3000000,2027-03-31,Active,Global Infrastructure Fund — residual
+CMT-0013-001,CL-0013,PF-0013,INS-0025,Credit Fund,10000000,USD,7000000,3000000,2026-12-31,Active,Asia Credit Opps Fund — residual
+CMT-0009-001,CL-0009,PF-0009,INS-0025,Credit Fund,5000000,NOK,4000000,1000000,2027-06-30,Active,Asia Credit Opps Fund NOK equivalent

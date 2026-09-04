@@ -1,0 +1,14 @@
+need_id,client_id,description,amount_local,currency,amount_chf,due_date,urgency,status,linked_portfolio_id,notes
+PCN-0014-001,CL-0014,Property settlement — Phase 3 residential development Kowloon,60000000,HKD,7200000,2026-11-30,High,Confirmed,PF-0014A,Client confirmed payment due Nov 30 2026. Linked to Kowloon residential project completion. Source: RM note 2026-07-15.
+PCN-0014-002,CL-0014,Annual family trust distribution,8000000,HKD,960000,2026-12-31,Medium,Confirmed,PF-0014A,Annual trust distribution to family members. Recurring.
+PCN-0014-003,CL-0014,Structured product autocallable maturity reinvestment,4000000,HKD,480000,2026-12-31,Low,Anticipated,PF-0014B,INS-0015 autocallable matures Dec 31 2026 — proceeds to be reinvested.
+PCN-0019-001,CL-0019,Family office operational expenses Q4 2026,2000000,USD,1860000,2026-12-31,Low,Routine,PF-0019B,Quarterly family office running costs.
+PCN-0019-002,CL-0019,Potential shipping asset acquisition — Dubai,50000000,USD,46500000,2027-06-30,Medium,Indicative,PF-0019A,Client indicated potential acquisition of additional shipping vessel — subject to board approval. Source: RM note 2026-08-12.
+PCN-0003-001,CL-0003,Inheritance tax instalment — Germany estate settlement,4200000,EUR,4620000,2026-12-31,High,Confirmed,PF-0003A,German inheritance tax instalment due Dec 2026. Confirmed with client and legal advisors. Source: RM note 2026-03-10.
+PCN-0003-002,CL-0003,Inheritance tax instalment — Germany estate settlement (final),3800000,EUR,4180000,2027-06-30,High,Confirmed,PF-0003A,Final inheritance tax instalment due Jun 2027.
+PCN-0003-003,CL-0003,Annual living expenses / distributions,1200000,EUR,1320000,2026-12-31,Medium,Routine,PF-0003B,Annual living expense distribution to client.
+PCN-0005-001,CL-0005,Venture co-investment capital call,5000000,USD,4650000,2026-10-31,High,Anticipated,PF-0005,Capital call expected from Gulf Energy Infrastructure Fund.
+PCN-0010-001,CL-0010,Venture fund commitment capital call,3000000,USD,2790000,2026-11-30,Medium,Anticipated,PF-0010,Capital call from Pavilion PE Fund IV.
+PCN-0001-001,CL-0001,Property acquisition deposit,5000000,CHF,5000000,2026-12-31,Medium,Anticipated,PF-0001,Client discussing Swiss property acquisition.
+PCN-0013-001,CL-0013,Business expansion capital reserve,8000000,SGD,5920000,2027-03-31,Low,Indicative,PF-0013,Client may need capital for Singapore business expansion — still at exploration stage.
+PCN-0006-001,CL-0006,Real estate development payment,4000000,USD,3720000,2026-10-31,Medium,Confirmed,PF-0006,Stage payment on Lagos development project.
