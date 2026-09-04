@@ -13,6 +13,7 @@ import Portfolios from './pages/Portfolios.jsx'
 import ScenarioLab from './pages/ScenarioLab.jsx'
 import Briefings from './pages/Briefings.jsx'
 import Settings from './pages/Settings.jsx'
+import ClientView from './pages/ClientView.jsx'
 import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
