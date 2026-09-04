@@ -360,6 +360,16 @@ export function buildHormuzScenario(snapshotDate = LATEST_SNAPSHOT) {
       ],
     },
 
+    objectiveImplications: [
+      'Client objective is to diversify away from Gulf/shipping — a regional re-escalation would concentrate losses precisely in the sectors the client wants to reduce.',
+    ],
+
+    rmConsiderations: [
+      'Review the shipping/energy concentration against the client\u2019s stated diversification objective.',
+      'Discuss how a regional re-escalation would affect both the portfolio and the client\u2019s operating business at the same time.',
+      'Confirm with the client the intended pace of diversification before considering any change.',
+    ],
+
     hormuzEvents: hormuzEvents.map(e => ({
       eventId: e.event_id,
       date: e.event_date,

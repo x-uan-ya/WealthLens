@@ -281,6 +281,156 @@ export function calculateCashCoverage(snapshotDate = LATEST_SNAPSHOT) {
   })
 }
 
+// ─── Client-Specific Stress Scenario (deterministic, verified data only) ───────
+
+/**
+ * Suitability & Liquidity Stress Test for Margarethe Voss-Brenner.
+ *
+ * Question: what happens to portfolio suitability and liquidity resilience if
+ * the inherited concentrated Deutsche Bank single-stock weakens before her
+ * confirmed inheritance-tax obligation?
+ *
+ * GOVERNANCE:
+ *   - KNOWN values come from verified engine outputs (DB weight/value,
+ *     mandate limit, effective equity, cash, inheritance-tax need).
+ *   - The ONLY assumption is a single, clearly-labelled DB decline %.
+ *   - CALCULATED values are pure arithmetic on the KNOWN + ASSUMPTION values.
+ *   - No fabricated figures, no AI.
+ */
+function buildMargaretheScenario({ equityAnalysis, cashCoverage, mandate, client }) {
+  const dbValueChf = equityAnalysis?.holdingDetails?.find(h => /deutsche bank/i.test(h.name))?.valueChf
+    ?? equityAnalysis?.directEquityChf
+    ?? null
+  const dbWeightPct = equityAnalysis?.deutscheBankWeightPct ?? null
+  const issuerMax = equityAnalysis?.mandateSingleIssuerMax ?? mandate?.max_single_issuer_pct ?? null
+  const portfolioChf = equityAnalysis?.totalChf ?? null
+  const tax = cashCoverage?.find(cn => cn.needId === 'PCN-0003-001') || cashCoverage?.[0] || null
+  const cashChf = tax?.availableCashChf ?? equityAnalysis?.cashChf ?? null
+
+  // ── ASSUMPTION: Deutsche Bank single-stock decline (single, explicit) ──
+  const ASSUMPTION_DB_DECLINE_PCT = 20
+
+  // ── CALCULATED (arithmetic on verified inputs) ──
+  let calc = null
+  if (typeof dbValueChf === 'number' && typeof portfolioChf === 'number' && portfolioChf > 0) {
+    const dbLossChf = Math.round(dbValueChf * (ASSUMPTION_DB_DECLINE_PCT / 100))
+    const portfolioAfterChf = portfolioChf - dbLossChf
+    const portfolioImpactPct = Math.round((dbLossChf / portfolioChf) * 10000) / 100
+    const dbWeightAfterPct = Math.round(((dbValueChf - dbLossChf) / portfolioAfterChf) * 10000) / 100
+    const taxNeed = tax?.amountChf ?? null
+    // Cash is not the DB position, so the tax buffer is unchanged by an equity
+    // decline; we surface the (unchanged) coverage explicitly for the RM.
+    const cashSurplusVsTaxChf = (cashChf != null && taxNeed != null) ? cashChf - taxNeed : null
+    calc = {
+      _label: 'CALCULATED STRESS RESULT — arithmetic on verified holding/mandate values + stated assumption',
+      assumedDbDeclinePct: ASSUMPTION_DB_DECLINE_PCT,
+      dbValueBeforeChf: dbValueChf,
+      dbLossChf,
+      dbValueAfterChf: dbValueChf - dbLossChf,
+      portfolioBeforeChf: portfolioChf,
+      portfolioAfterChf,
+      portfolioImpactChf: -dbLossChf,
+      portfolioImpactPct: -portfolioImpactPct,
+      dbWeightBeforePct: dbWeightPct,
+      dbWeightAfterPct,
+      issuerMaxPct: issuerMax,
+      stillExceedsIssuerMax: typeof issuerMax === 'number' ? dbWeightAfterPct > issuerMax : null,
+      taxNeedChf: taxNeed,
+      cashAvailableChf: cashChf,
+      cashSurplusVsTaxChf,
+      taxStillCoveredByCash: (cashChf != null && taxNeed != null) ? cashChf >= taxNeed : null,
+    }
+  }
+
+  return {
+    clientId: CLIENT_ID,
+    scenarioName: 'Suitability & Liquidity Stress Test',
+    scenarioDescription:
+      'Deterministic stress test: how portfolio suitability (single-issuer concentration for a Conservative mandate) and liquidity resilience respond if the inherited Deutsche Bank position weakens before the confirmed inheritance-tax instalment. NOT a forecast.',
+    authoritativeEventIds: [],
+
+    knownData: {
+      _label: 'KNOWN DATA — verified from holdings.csv, mandates.csv, planned_cash_needs.csv',
+      riskProfile: client?.risk_profile ?? null,
+      deutscheBankWeightPct: dbWeightPct,
+      deutscheBankValueChf: dbValueChf,
+      mandateSingleIssuerMaxPct: issuerMax,
+      effectiveEquityPct: equityAnalysis?.effectiveEquityPct ?? null,
+      portfolioValueChf: portfolioChf,
+      inheritanceTaxNeedChf: tax?.amountChf ?? null,
+      inheritanceTaxNeedLocal: tax?.amountLocal ?? null,
+      inheritanceTaxCurrency: tax?.currency ?? null,
+      inheritanceTaxDueDate: tax?.dueDate ?? null,
+      currentCashChf: cashChf,
+    },
+
+    assumptions: {
+      _label: 'ASSUMPTIONS — stated, not authoritative; used for this stress test only',
+      deutscheBankDeclinePct: -ASSUMPTION_DB_DECLINE_PCT,
+      rationale:
+        'A single hypothetical decline is applied to the concentrated Deutsche Bank single-stock. Chosen for illustration; not derived from a forecast.',
+    },
+
+    calculatedStressResult: calc,
+
+    affectedExposures: [
+      dbWeightPct != null && issuerMax != null && {
+        label: 'Deutsche Bank single-issuer concentration',
+        value: `${dbWeightPct}% vs mandate max ${issuerMax}%`,
+      },
+      tax?.amountChf != null && {
+        label: 'Confirmed inheritance-tax requirement',
+        value: `CHF ${tax.amountChf.toLocaleString()}${tax.dueDate ? ` due ${tax.dueDate}` : ''}`,
+      },
+    ].filter(Boolean),
+
+    portfolioImplications: [
+      calc && `A ${ASSUMPTION_DB_DECLINE_PCT}% decline in Deutsche Bank would reduce portfolio value by an estimated CHF ${calc.dbLossChf.toLocaleString()} (${calc.portfolioImpactPct}% of portfolio).`,
+      calc && calc.stillExceedsIssuerMax != null && (calc.stillExceedsIssuerMax
+        ? `Even after the decline, Deutsche Bank would remain above the ${calc.issuerMaxPct}% single-issuer limit (estimated ${calc.dbWeightAfterPct}%) — the suitability breach persists.`
+        : `After the decline, Deutsche Bank would fall to an estimated ${calc.dbWeightAfterPct}%, within the ${calc.issuerMaxPct}% single-issuer limit.`),
+      calc && calc.taxStillCoveredByCash != null && (calc.taxStillCoveredByCash
+        ? `The confirmed inheritance-tax need (CHF ${calc.taxNeedChf?.toLocaleString()}) remains covered by cash (CHF ${calc.cashAvailableChf?.toLocaleString()}); the equity decline does not directly reduce the cash buffer.`
+        : `The inheritance-tax need may not be fully covered by cash after this scenario.`),
+    ].filter(Boolean),
+
+    objectiveImplications: [
+      'Client objective is to de-risk the inherited portfolio and secure stable income for a Conservative profile — a concentrated single-stock decline highlights why reducing issuer concentration ahead of the tax obligation is worth discussing.',
+    ],
+
+    uncertainty: {
+      items: [
+        'The Deutsche Bank decline percentage is an illustrative assumption, not a forecast.',
+        'Single-stock moves can differ materially from broad-equity moves.',
+        'Final inheritance-tax amount is subject to German tax-authority confirmation.',
+      ],
+    },
+
+    rmConsiderations: [
+      'Review the single-issuer concentration against the Conservative mandate limit.',
+      'Discuss whether reducing the inherited Deutsche Bank position ahead of the tax date improves suitability and liquidity resilience.',
+      'Confirm with the client the sentimental/other reasons for retaining the inherited position before any suitability action.',
+    ],
+
+    evidence: [
+      equityAnalysis?.evidence?.[0] && {
+        label: equityAnalysis.evidence[0].claim,
+        value: equityAnalysis.evidence[0].value,
+        source: equityAnalysis.evidence[0].source,
+        snapshot: equityAnalysis.evidence[0].snapshot,
+        record: (equityAnalysis.evidence[0].recordIds || []).join(', '),
+      },
+      tax?.evidence && {
+        label: tax.evidence.claim,
+        value: tax.evidence.value,
+        source: tax.evidence.source,
+        snapshot: tax.evidence.snapshot,
+        record: tax.evidence.recordId,
+      },
+    ].filter(Boolean),
+  }
+}
+
 // ─── Main Intelligence Function ────────────────────────────────────────────────
 
 export function getMargartheIntelligence(snapshotDate = LATEST_SNAPSHOT) {
@@ -413,6 +563,14 @@ export function getMargartheIntelligence(snapshotDate = LATEST_SNAPSHOT) {
   }
   const priorityScore = Object.values(priorityFactors).reduce((s, v) => s + v, 0)
 
+  // Client-specific stress scenario (deterministic, verified data only).
+  const scenario = buildMargaretheScenario({
+    equityAnalysis,
+    cashCoverage,
+    mandate,
+    client,
+  })
+
   return {
     clientId: CLIENT_ID,
     clientName: client?.full_name || 'Margarethe Voss-Brenner',
@@ -422,6 +580,7 @@ export function getMargartheIntelligence(snapshotDate = LATEST_SNAPSHOT) {
     priority: priorityScore >= 70 ? 'high' : 'medium',
     priorityScore,
     priorityFactors,
+    scenario,
     mandate: {
       mandateId: mandate?.mandate_id,
       mandateType: mandate?.mandate_type,

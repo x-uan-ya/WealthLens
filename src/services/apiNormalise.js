@@ -181,7 +181,11 @@ export function normaliseSnapshotHistory(snapshotsResponse) {
   return { dates, series }
 }
 
-// ─── scenario: server Hormuz shape -> ScenarioPanel shape ──────────────────────
+// ─── scenario: server scenario shape -> ScenarioPanel shape ────────────────────
+// Works for all three supported clients. Prefers the explicit presentation
+// arrays a scenario supplies (affectedExposures / portfolioImplications /
+// objectiveImplications / evidence / rmConsiderations); otherwise falls back to
+// deriving them from the Hormuz-style knownData/calculatedStressResult fields.
 export function normaliseScenario(sc) {
   if (!sc) return null
   const known = sc.knownData || {}
@@ -189,29 +193,43 @@ export function normaliseScenario(sc) {
   const assumptions = sc.assumptions || {}
   const chf = (n) => (typeof n === 'number' ? `CHF ${new Intl.NumberFormat('en-CH').format(n)}` : null)
 
-  const affectedExposures = []
-  if (known.observedTotalImpactChf != null)
-    affectedExposures.push({ label: 'Observed impact (Feb 2026)', value: chf(known.observedTotalImpactChf) })
-  if (calc.currentPortfolioValueChf != null)
-    affectedExposures.push({ label: 'Current portfolio value', value: chf(calc.currentPortfolioValueChf) })
+  // Affected exposures: explicit if supplied, else derive (Hormuz).
+  let affectedExposures = Array.isArray(sc.affectedExposures) ? sc.affectedExposures : null
+  if (!affectedExposures) {
+    affectedExposures = []
+    if (known.observedTotalImpactChf != null)
+      affectedExposures.push({ label: 'Observed impact (Feb 2026)', value: chf(known.observedTotalImpactChf) })
+    if (calc.currentPortfolioValueChf != null)
+      affectedExposures.push({ label: 'Current portfolio value', value: chf(calc.currentPortfolioValueChf) })
+  }
 
-  const portfolioImplications = []
-  if (calc.totalStressImpactChf != null)
-    portfolioImplications.push(`Modelled stress impact: ${chf(calc.totalStressImpactChf)} (${calc.portfolioStressImpactPct}% of portfolio).`)
-  if (calc.portfolioValueAfterStressChf != null)
-    portfolioImplications.push(`Portfolio value after modelled stress: ${chf(calc.portfolioValueAfterStressChf)}.`)
+  // Portfolio implications: explicit if supplied, else derive (Hormuz).
+  let portfolioImplications = Array.isArray(sc.portfolioImplications) ? sc.portfolioImplications : null
+  if (!portfolioImplications) {
+    portfolioImplications = []
+    if (calc.totalStressImpactChf != null)
+      portfolioImplications.push(`Modelled stress impact: ${chf(calc.totalStressImpactChf)} (${calc.portfolioStressImpactPct}% of portfolio).`)
+    if (calc.portfolioValueAfterStressChf != null)
+      portfolioImplications.push(`Portfolio value after modelled stress: ${chf(calc.portfolioValueAfterStressChf)}.`)
+  }
 
-  const assumptionList = Object.entries(assumptions)
-    .filter(([k]) => !k.startsWith('_'))
-    .map(([k, v]) => (k === 'rationale' ? String(v) : `${humanise(k)}: ${typeof v === 'number' ? v + '%' : v}`))
+  // Assumptions: the object form { key: value } -> readable lines.
+  const assumptionList = Array.isArray(sc.assumptions)
+    ? sc.assumptions
+    : Object.entries(assumptions)
+        .filter(([k]) => !k.startsWith('_'))
+        .map(([k, v]) => (k === 'rationale' ? String(v) : `${humanise(k)}: ${typeof v === 'number' ? v + '%' : v}`))
 
-  const evidence = (sc.hormuzEvents || []).map((e) => ({
-    label: e.title,
-    value: e.marketImpact,
-    source: 'event_log.csv',
-    snapshot: e.date,
-    record: e.eventId,
-  }))
+  // Evidence: explicit if supplied (Lau/Margarethe), else from hormuzEvents.
+  const evidence = Array.isArray(sc.evidence) && sc.evidence.length
+    ? sc.evidence
+    : (sc.hormuzEvents || []).map((e) => ({
+        label: e.title,
+        value: e.marketImpact,
+        source: 'event_log.csv',
+        snapshot: e.date,
+        record: e.eventId,
+      }))
 
   return {
     id: sc.scenarioName ? sc.scenarioName.replace(/\s+/g, '_').toUpperCase() : 'SCENARIO',
@@ -220,9 +238,11 @@ export function normaliseScenario(sc) {
     description: sc.scenarioDescription,
     affectedExposures,
     portfolioImplications,
-    objectiveImplications: [],
+    objectiveImplications: Array.isArray(sc.objectiveImplications) ? sc.objectiveImplications : [],
     assumptions: assumptionList,
     uncertainty: (sc.uncertainty?.items || []).join(' '),
+    rmConsiderations: Array.isArray(sc.rmConsiderations) ? sc.rmConsiderations : [],
+    authoritativeEventIds: Array.isArray(sc.authoritativeEventIds) ? sc.authoritativeEventIds : [],
     evidence,
   }
 }

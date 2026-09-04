@@ -334,6 +334,158 @@ export function getLauSnapshotHistory() {
   return getSnapshotHistory(CLIENT_ID)
 }
 
+// ─── Client-Specific Stress Scenario (deterministic, verified data only) ───────
+
+/**
+ * Property & Liquidity Stress Test for Lau Chi Ming.
+ *
+ * Question: what happens to the structured-product credit facility and to
+ * liquidity if the property-linked collateral weakens as the confirmed
+ * HKD 60m settlement approaches?
+ *
+ * GOVERNANCE:
+ *   - KNOWN values come straight from verified engine outputs (LTV, collateral,
+ *     drawn amount, cash need, headroom).
+ *   - The ONLY assumption is a single, clearly-labelled collateral decline %.
+ *   - CALCULATED values are pure arithmetic on the KNOWN + ASSUMPTION values.
+ *   - No fabricated figures, no AI, no revived legacy numbers.
+ */
+function buildLauScenario({ propertyConcentration, creditFacilityStatus, cashRequirement }) {
+  const facilities = creditFacilityStatus?.facilities || []
+  // Focus on the structured-product facility nearest its margin call (CF-0014-003).
+  const cf = facilities.find(f => f.facilityId === 'CF-0014-003') || facilities[0]
+  const primaryNeed = cashRequirement?.primaryCashNeed || null
+
+  // ── ASSUMPTION: property-linked collateral decline (single, explicit) ──
+  const ASSUMPTION_COLLATERAL_DECLINE_PCT = 15  // stress: HK property-linked collateral falls 15%
+
+  // ── CALCULATED (arithmetic on verified inputs) ──
+  let calc = null
+  if (cf && typeof cf.collateralValue === 'number' && typeof cf.drawnAmount === 'number' && cf.collateralValue > 0) {
+    const stressedCollateral = Math.round(cf.collateralValue * (1 - ASSUMPTION_COLLATERAL_DECLINE_PCT / 100))
+    const stressedLtv = Math.round((cf.drawnAmount / stressedCollateral) * 10000) / 100
+    const marginCall = cf.ltvMarginCallPct
+    const headroomAfter = typeof marginCall === 'number'
+      ? Math.round((marginCall - stressedLtv) * 100) / 100
+      : null
+    calc = {
+      _label: 'CALCULATED STRESS RESULT — arithmetic on verified facility values + stated assumption',
+      facilityId: cf.facilityId,
+      assumedCollateralDeclinePct: ASSUMPTION_COLLATERAL_DECLINE_PCT,
+      currentCollateralChf: cf.collateralValue,
+      stressedCollateralChf: stressedCollateral,
+      currentLtvPct: cf.ltvCurrentPct,
+      stressedLtvPct: stressedLtv,
+      marginCallLtvPct: marginCall,
+      headroomBeforePpts: cf.headroomToMarginCallPpts,
+      headroomAfterPpts: headroomAfter,
+      breachesMarginCall: typeof marginCall === 'number' ? stressedLtv >= marginCall : null,
+      facilityCurrency: cf.currency,
+    }
+  }
+
+  const need = primaryNeed?.amountChf ?? null
+  const cashPos = cashRequirement?.cashPositionChf ?? null
+  const lombardHeadroom = cashRequirement?.lombardHeadroomChf ?? null
+
+  return {
+    clientId: CLIENT_ID,
+    scenarioName: 'Property & Liquidity Stress Test',
+    scenarioDescription:
+      'Deterministic stress test: how the structured-product facility and near-term liquidity respond if property-linked collateral weakens as the confirmed HKD settlement approaches. NOT a forecast.',
+    authoritativeEventIds: [],
+
+    knownData: {
+      _label: 'KNOWN DATA — verified from credit_facilities.csv, planned_cash_needs.csv, holdings.csv',
+      propertyLinkedExposurePct: propertyConcentration?.totalPropertyPct ?? null,
+      propertyLinkedExposureChf: propertyConcentration?.totalPropertyChf ?? null,
+      facilityId: cf?.facilityId ?? null,
+      currentLtvPct: cf?.ltvCurrentPct ?? null,
+      marginCallLtvPct: cf?.ltvMarginCallPct ?? null,
+      currentHeadroomPpts: cf?.headroomToMarginCallPpts ?? null,
+      drawnAmount: cf?.drawnAmount ?? null,
+      collateralValue: cf?.collateralValue ?? null,
+      facilityCurrency: cf?.currency ?? null,
+      confirmedCashNeedChf: need,
+      confirmedCashNeedLocal: primaryNeed?.amountLocal ?? null,
+      confirmedCashNeedCurrency: primaryNeed?.currency ?? null,
+      cashNeedDueDate: primaryNeed?.dueDate ?? null,
+      currentCashPositionChf: cashPos,
+      lombardHeadroomChf: lombardHeadroom,
+    },
+
+    assumptions: {
+      _label: 'ASSUMPTIONS — stated, not authoritative; used for this stress test only',
+      propertyLinkedCollateralDeclinePct: -ASSUMPTION_COLLATERAL_DECLINE_PCT,
+      rationale:
+        'A single hypothetical decline is applied to the property-linked collateral securing CF-0014-003. Chosen for illustration; not derived from a forecast.',
+    },
+
+    calculatedStressResult: calc,
+
+    // Direct exposures the RM should look at (verified values).
+    affectedExposures: [
+      propertyConcentration?.totalPropertyPct != null && {
+        label: 'Property-linked exposure',
+        value: `${propertyConcentration.totalPropertyPct}% of portfolio`,
+      },
+      cf && { label: `${cf.facilityId} current LTV`, value: `${cf.ltvCurrentPct}% (margin call ${cf.ltvMarginCallPct}%)` },
+      need != null && { label: 'Confirmed cash requirement', value: `CHF ${need.toLocaleString()}${primaryNeed?.dueDate ? ` due ${primaryNeed.dueDate}` : ''}` },
+    ].filter(Boolean),
+
+    portfolioImplications: [
+      calc && `A ${ASSUMPTION_COLLATERAL_DECLINE_PCT}% decline in property-linked collateral would move ${calc.facilityId} LTV from ${calc.currentLtvPct}% to an estimated ${calc.stressedLtvPct}% (margin call ${calc.marginCallLtvPct}%).`,
+      calc && (calc.breachesMarginCall
+        ? `This would breach the ${calc.marginCallLtvPct}% margin-call level (estimated headroom ${calc.headroomAfterPpts} ppts).`
+        : `Estimated headroom to margin call would narrow to ${calc.headroomAfterPpts} ppts.`),
+      need != null && cashPos != null && lombardHeadroom != null &&
+        `Confirmed cash need CHF ${need.toLocaleString()} is currently coverable from cash (CHF ${cashPos.toLocaleString()}) plus Lombard headroom (CHF ${lombardHeadroom.toLocaleString()}); a collateral decline reduces that headroom.`,
+    ].filter(Boolean),
+
+    objectiveImplications: [
+      'Client objective is to retain Hong Kong property recovery exposure while servicing development financing — a collateral decline pressures both the facility and the settlement timing simultaneously.',
+    ],
+
+    uncertainty: {
+      items: [
+        'Collateral valuations are point-in-time; actual marks move continuously.',
+        'The collateral decline percentage is an illustrative assumption, not a forecast.',
+        'Timing overlap between a collateral decline and the settlement date is uncertain.',
+      ],
+    },
+
+    rmConsiderations: [
+      'Review current headroom on CF-0014-003 against the confirmed settlement date.',
+      'Discuss whether partial pre-funding of the HKD settlement reduces reliance on the facility.',
+      'Confirm with the client the acceptable range of property-linked collateral movement before action would be considered.',
+    ],
+
+    evidence: [
+      cf && {
+        label: `Facility ${cf.facilityId} status`,
+        value: `Current LTV ${cf.ltvCurrentPct}% | Margin call ${cf.ltvMarginCallPct}% | Collateral CHF-equiv ${cf.collateralValue?.toLocaleString()} | Drawn ${cf.drawnAmount?.toLocaleString()} ${cf.currency}`,
+        source: 'credit_facilities.csv',
+        snapshot: cashRequirement?.snapshotDate,
+        record: cf.facilityId,
+      },
+      primaryNeed && {
+        label: 'Confirmed cash requirement',
+        value: `${primaryNeed.amountLocal?.toLocaleString()} ${primaryNeed.currency} (CHF ${primaryNeed.amountChf?.toLocaleString()}) due ${primaryNeed.dueDate}`,
+        source: 'planned_cash_needs.csv',
+        snapshot: cashRequirement?.snapshotDate,
+        record: primaryNeed.needId,
+      },
+      propertyConcentration?.evidence?.[0] && {
+        label: propertyConcentration.evidence[0].claim,
+        value: propertyConcentration.evidence[0].value,
+        source: propertyConcentration.evidence[0].source,
+        snapshot: propertyConcentration.evidence[0].snapshot,
+        record: (propertyConcentration.evidence[0].recordIds || []).join(', '),
+      },
+    ].filter(Boolean),
+  }
+}
+
 // ─── Main Intelligence Function ────────────────────────────────────────────────
 
 export function getLauChiMingIntelligence(snapshotDate = LATEST_SNAPSHOT) {
@@ -492,6 +644,15 @@ export function getLauChiMingIntelligence(snapshotDate = LATEST_SNAPSHOT) {
   }
   const priorityScore = Object.values(priorityFactors).reduce((sum, v) => sum + v, 0)
 
+  // Client-specific stress scenario (deterministic, verified data only).
+  const scenario = buildLauScenario({
+    snapshotDate,
+    propertyConcentration,
+    creditFacilityStatus,
+    cashRequirement,
+    aggregatePortfolio,
+  })
+
   return {
     clientId: CLIENT_ID,
     clientName: client?.full_name || 'Lau Chi Ming',
@@ -501,6 +662,7 @@ export function getLauChiMingIntelligence(snapshotDate = LATEST_SNAPSHOT) {
     priority: priorityScore >= 80 ? 'critical' : priorityScore >= 60 ? 'high' : 'medium',
     priorityScore,
     priorityFactors,
+    scenario,
     mandate: {
       mandateId: mandate?.mandate_id,
       mandateType: mandate?.mandate_type,

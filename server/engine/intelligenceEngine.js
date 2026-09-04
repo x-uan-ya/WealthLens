@@ -71,7 +71,7 @@ function formatLauIntelligence(snapshotDate) {
       lastContactDate: raw.snapshotDate,
     },
     relevantEvents: eventContext.events,
-    scenarios: [],  // Lau does not have a scenario in this phase; credit stress could be added
+    scenarios: raw.scenario ? [raw.scenario] : [],
     aiBriefInput: buildAIBriefInput('CL-0014', raw, eventContext),
     // Detailed calculation outputs for display
     detail: {
@@ -139,7 +139,7 @@ function formatMargartheIntelligence(snapshotDate) {
       recentNotes: raw.rmNotes,
     },
     relevantEvents: raw.relevantEvents,
-    scenarios: [],
+    scenarios: raw.scenario ? [raw.scenario] : [],
     aiBriefInput: buildAIBriefInput('CL-0003', raw, eventContext),
     detail: {
       equityAnalysis: raw.equityAnalysis,

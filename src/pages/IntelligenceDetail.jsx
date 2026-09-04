@@ -228,24 +228,29 @@ export default function IntelligenceDetail() {
             )
           )}
 
-          {/* Scenario link — when the engine has attached stress tests */}
-          {intel.scenarios?.length > 0 && (
-            <Card className="card-pad">
-              <div className="row between wrap" style={{ gap: 12 }}>
-                <div>
-                  <div className="eyebrow" style={{ marginBottom: 4 }}>Scenario / stress test</div>
-                  <div className="soft" style={{ fontSize: 13.5 }}>
-                    {intel.scenarios.length === 1
-                      ? intel.scenarios[0].name
-                      : `${intel.scenarios.length} scenarios available`} — not a forecast.
-                  </div>
+          {/* Scenario link — enabled when the engine has attached a stress test,
+              otherwise a disabled 'coming soon' state (Future capability). */}
+          <Card className="card-pad">
+            <div className="row between wrap" style={{ gap: 12 }}>
+              <div>
+                <div className="eyebrow" style={{ marginBottom: 4 }}>Scenario / stress test</div>
+                <div className="soft" style={{ fontSize: 13.5 }}>
+                  {intel.scenarios?.length > 0
+                    ? `${intel.scenarios[0].name} — not a forecast.`
+                    : 'Client-specific scenario modelling is not yet available for this client.'}
                 </div>
+              </div>
+              {intel.scenarios?.length > 0 ? (
                 <Link className="btn btn-primary btn-sm" to={`/scenario-lab?client=${intel.clientId}`}>
                   <FlaskConical size={14} /> Open in Scenario Lab
                 </Link>
-              </div>
-            </Card>
-          )}
+              ) : (
+                <button className="btn btn-sm" disabled title="Scenario model coming soon">
+                  <FlaskConical size={14} /> Scenario model coming soon
+                </button>
+              )}
+            </div>
+          </Card>
 
           {/* Historical changes */}
           {intel.snapshotHistory && (
