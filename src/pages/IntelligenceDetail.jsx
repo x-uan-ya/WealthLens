@@ -11,6 +11,7 @@ import {
   getClientIntelligence,
   getOfficialClientById,
   getClientBrief,
+  generateClientBrief,
   getBriefStatus,
   setBriefStatus,
 } from '../services/dataService.js'
@@ -54,6 +55,19 @@ export default function IntelligenceDetail() {
 
   const changeBriefStatus = (next) => {
     setBriefStatus(id, next).then(() => setBriefStatusState(next))
+  }
+
+  // Generate the grounded AI brief on demand (server-side OpenAI). Falls back
+  // to the pending marker if the AI service is unavailable so the panel still
+  // opens rather than silently doing nothing.
+  const [briefLoading, setBriefLoading] = useState(false)
+  const handleGenerateBrief = () => {
+    setBriefLoading(true)
+    generateClientBrief(id).then((generated) => {
+      if (generated) setBrief(generated)
+      setBriefOpen(true)
+      setBriefLoading(false)
+    })
   }
 
   if (state.loading) return <Loading label="Opening intelligence" />
@@ -206,8 +220,8 @@ export default function IntelligenceDetail() {
                       Generate a structured brief for your review. You edit, reject or mark it ready.
                     </div>
                   </div>
-                  <button className="btn btn-primary btn-sm" onClick={() => setBriefOpen(true)}>
-                    <FileText size={14} /> Generate RM Brief
+                  <button className="btn btn-primary btn-sm" onClick={handleGenerateBrief} disabled={briefLoading}>
+                    <FileText size={14} /> {briefLoading ? 'Generating…' : 'Generate RM Brief'}
                   </button>
                 </div>
               </Card>

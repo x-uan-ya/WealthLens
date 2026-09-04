@@ -33,7 +33,7 @@ const SENSITIVITY = {
   Cash:              { equity: 0,    rate:  0.02, fx: -0.30 },
   Derivatives:       { equity: -0.3, rate:  0,    fx:  0    },
   Alternatives:      { equity: 0.5,  rate: -0.15, fx: -0.10 },
-  // Sector-level asset classes used by some clients (e.g. Catherine Tan).
+  // Sector-level asset classes used by the exploratory model.
   // Technology equities carry higher equity beta and moderate FX sensitivity
   // given the USD-denominated nature of major holdings.
   Technology:        { equity: 1.4,  rate: -0.08, fx: -0.20 },
