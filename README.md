@@ -1,475 +1,233 @@
-# WealthLens
+## System Architecture
 
-### From Portfolio Monitoring to Client Intelligence
+WealthLens uses a **hybrid intelligence architecture** that separates deterministic financial analysis from generative AI.
 
-**WealthLens** is a private-banking wealth intelligence prototype designed to help Relationship Managers identify which portfolio developments require attention, understand why they matter to a specific client, and prepare for more informed client conversations.
+Financial calculations such as portfolio exposure, concentration and scenario impact are handled by application logic. OpenAI is used to transform verified results into clear, personalised and explainable intelligence for the Relationship Manager.
 
-> **Relationship Managers don't need more alerts. They need to know which information matters, to which client, and why.**
+```mermaid
+flowchart TD
+    A["📊 Data Layer<br/>Client • Portfolio • Market Data"]
 
----
+    A --> B["⚙️ Wealth Intelligence Engine"]
 
-## Overview
+    B --> C["Portfolio Analysis<br/>Exposure • Concentration"]
+    B --> D["Client Relevance Engine<br/>Risk • Goals • Liquidity"]
+    B --> E["Scenario Engine<br/>Market Impact Simulation"]
 
-Relationship Managers may oversee many clients, portfolios, market developments, and alerts at the same time.
+    C --> F["🧠 OpenAI Intelligence Layer"]
+    D --> F
+    E --> F
 
-Traditional portfolio-monitoring systems can identify changes, but the Relationship Manager may still need to manually determine:
+    F --> G["Explain Why This Client"]
+    F --> H["Generate RM Brief"]
+    F --> I["Create Discussion Points"]
 
-* Which clients are actually affected?
-* How significant is the impact?
-* Why does the development matter to this particular client?
-* Does it conflict with the client's goals, risk profile, or liquidity requirements?
-* Which clients should be prioritised?
-* What should the Relationship Manager review before speaking with the client?
+    G --> J["💻 WealthLens Experience"]
+    H --> J
+    I --> J
 
-WealthLens explores how portfolio monitoring can evolve into **client-specific wealth intelligence**.
+    J --> K["Dashboard"]
+    J --> L["Intelligence & Alerts"]
+    J --> M["Scenario Lab"]
+    J --> N["Evidence & Briefings"]
 
-Instead of simply generating more alerts, WealthLens connects:
+    K --> O["👤 Relationship Manager"]
+    L --> O
+    M --> O
+    N --> O
 
-**Market Developments → Portfolio Exposure → Client Context → Relevance → Relationship Manager Action**
+    O --> P["🤝 Human Review & Client Conversation"]
+```
 
----
+### Architecture Flow
 
-## Core Principle
+**1. Data Layer**
 
-WealthLens is designed to **augment Relationship Managers, not replace them**.
+WealthLens receives structured information from three main sources:
 
-The platform does not autonomously make investment decisions or execute buy/sell recommendations.
+* **Client Data** — risk profile, investment objectives, liquidity requirements and investment horizon
+* **Portfolio Data** — holdings, asset allocation, portfolio value and exposure
+* **Market Data** — relevant market events and scenarios
 
-Instead, it helps Relationship Managers:
-
-1. Identify situations requiring attention.
-2. Understand why a particular client may be affected.
-3. Review supporting evidence.
-4. Explore potential portfolio scenarios.
-5. Prepare for a more informed client conversation.
-
-The Relationship Manager remains responsible for the final judgement and client interaction.
-
----
-
-## Key Features
-
-### RM Intelligence Dashboard
-
-A central dashboard gives Relationship Managers a prioritised overview of their client base.
-
-It highlights:
-
-* Clients monitored
-* Market developments analysed
-* Clients requiring attention
-* Low-relevance alerts filtered out
-* High-priority intelligence
-
-Rather than reviewing every market movement, the RM can focus on situations that are most relevant.
+For the current prototype, fictional and mock data are used.
 
 ---
 
-### Client Management
+**2. Wealth Intelligence Engine**
 
-Relationship Managers can browse and search their clients using information such as:
+Before generative AI is used, WealthLens performs deterministic analysis.
 
-* Portfolio value
-* Risk profile
-* Investment objective
-* Current priority
-* Relevance score
-* Last interaction
+The engine is responsible for:
 
-Each client has a dedicated profile containing portfolio and wealth-planning context.
+* Portfolio exposure analysis
+* Concentration detection
+* Scenario impact calculations
+* Client-context analysis
+* Relevance scoring
 
----
+A development can therefore be evaluated not only by how significant the market event is, but by how relevant it is to an individual client's circumstances.
 
-### Portfolio Overview
-
-Client profiles provide a clear view of:
-
-* Total portfolio value
-* Asset allocation
-* Portfolio performance
-* Cash position
-* Risk profile
-* Investment horizon
-* Liquidity requirements
-* Client objectives
-
-This information provides the context required to determine whether a market development is actually relevant to a client.
-
----
-
-### Intelligence Feed
-
-WealthLens converts portfolio developments into prioritised intelligence.
-
-Example:
-
-**High Priority — Relevance Score: 92/100**
-
-> Semiconductor Concentration Requires Attention
-
-Instead of only reporting that the market moved, WealthLens explains why the development may matter to the individual client.
-
----
-
-### Client Relevance Score
-
-The **Client Relevance Score** is a core concept within WealthLens.
-
-It represents how important a particular development may be for a specific client.
-
-The prototype considers factors such as:
-
-* Portfolio Exposure
-* Market Impact
-* Goal Sensitivity
-* Urgency
-
-Example:
-
-| Factor                |  Score |
-| --------------------- | -----: |
-| Portfolio Exposure    |     91 |
-| Market Impact         |     82 |
-| Goal Sensitivity      |     94 |
-| Urgency               |     88 |
-| **Overall Relevance** | **92** |
-
-The current prototype uses mock scores for demonstration purposes. The scoring engine is designed to be replaced with real portfolio data and analytical logic in future development.
-
----
-
-### Why This Client?
-
-Explainability is an important part of WealthLens.
-
-Instead of displaying only a risk or relevance score, the system explains the reasoning behind an intelligence item.
-
-For example:
-
-**Market Development**
-
-↓
-
-**Portfolio Exposure**
-
-↓
-
-**Client Risk Profile**
-
-↓
-
-**Financial Goals**
-
-↓
-
-**Liquidity Requirements**
-
-↓
-
-**Urgency**
-
-↓
-
-**Client Relevance**
-
-Relationship Managers can inspect the underlying evidence before deciding whether action is required.
-
----
-
-### Evidence & Traceability
-
-Each intelligence item can display supporting information from sources such as:
-
-* Portfolio holdings
-* Client profile
-* Client objectives
-* Market developments
-* Scenario analysis
-
-This allows the Relationship Manager to understand where an insight originated rather than relying on an unexplained AI-generated conclusion.
-
----
-
-### Scenario Lab
-
-The Scenario Lab allows Relationship Managers to explore hypothetical market developments.
-
-Example scenarios include:
-
-* Technology sector −10%
-* Equity market −8%
-* Interest rates +1%
-* USD −5%
-* Custom scenarios
-
-The interface displays potential effects on:
-
-* Portfolio value
-* Individual holdings
-* Portfolio concentration
-* Risk thresholds
-* Affected clients
-
-The current prototype uses deterministic mock calculations rather than real market forecasting.
-
----
-
-### RM Intelligence Brief
-
-WealthLens can transform an intelligence item into a structured briefing containing:
-
-* Situation
-* Why it matters
-* Client context
-* Key evidence
-* Scenario impact
-* Suggested discussion points
-
-The purpose is to reduce preparation time while keeping the Relationship Manager responsible for the final advice.
-
----
-
-### Client View
-
-WealthLens also demonstrates how complex intelligence could be translated into a simpler client experience.
-
-Relationship Managers receive detailed analysis, while clients receive understandable explanations of:
-
-* What happened
-* How their portfolio may be affected
-* Why it may matter
-* When they may want to speak with their Relationship Manager
-
-This supports the human advisory relationship rather than replacing it.
-
----
-
-## Technology Stack
-
-The current prototype uses:
-
-* **React**
-* **Vite**
-* **JavaScript**
-* **CSS**
-* **Recharts**
-* **Lucide React**
-* **React Router**
-
-The application is designed for deployment using **Vercel**.
-
----
-
-## Architecture
+### Client Relevance Model
 
 ```text
-                    WealthLens
-
-Market / Portfolio / Client Data
-              │
-              ▼
-      Intelligence Engine
-              │
-              ▼
-      Client Relevance Layer
-              │
-      ┌───────┴────────┐
-      ▼                ▼
- Evidence &        Scenario
- Explanation       Analysis
-      │                │
-      └───────┬────────┘
-              ▼
-       RM Intelligence
-              │
-              ▼
-     Relationship Manager
-              │
-              ▼
-       Client Conversation
+Portfolio Exposure
+        +
+Market Impact
+        +
+Client Risk Profile
+        +
+Financial Goals
+        +
+Liquidity Requirements
+        +
+Urgency
+        ↓
+CLIENT RELEVANCE SCORE
 ```
 
-The current prototype uses mock data and simulated intelligence.
-
-The architecture is intentionally modular so that future APIs, AI models, databases, and financial datasets can be integrated without rebuilding the frontend.
+For example, the same market event may receive a high relevance score for a client with concentrated exposure and an upcoming liquidity requirement, while receiving a much lower score for a diversified client with a long investment horizon.
 
 ---
 
-## Project Structure
+**3. OpenAI Intelligence Layer**
+
+OpenAI is used **after** the financial and relevance calculations have been performed.
+
+Instead of asking the language model to calculate financial figures or independently make investment decisions, WealthLens provides the model with structured and verified information.
+
+Example input:
+
+```json
+{
+  "client": {
+    "riskProfile": "Moderate",
+    "liquidityNeed": 300000,
+    "liquidityHorizonMonths": 4
+  },
+  "portfolio": {
+    "portfolioValue": 4200000,
+    "technologyExposure": 27.8
+  },
+  "scenario": {
+    "technologySectorChange": -10,
+    "estimatedPortfolioImpact": -168000
+  },
+  "relevanceScore": 92
+}
+```
+
+The AI layer can then generate structured intelligence such as:
+
+```json
+{
+  "priority": "HIGH",
+  "whyThisClient": "The client has concentrated technology exposure combined with a near-term liquidity requirement.",
+  "keyEvidence": [
+    "Technology exposure: 27.8%",
+    "Moderate risk profile",
+    "S$300,000 liquidity requirement within 4 months"
+  ],
+  "rmPreparation": "Review concentration and liquidity resilience before the next client discussion."
+}
+```
+
+This architecture reduces reliance on unverified AI-generated financial calculations while still benefiting from generative AI's ability to explain complex information clearly.
+
+---
+
+**4. WealthLens Experience**
+
+The resulting intelligence is presented through the WealthLens interface:
+
+* RM Dashboard
+* Prioritised Intelligence
+* Client Profiles
+* Portfolio Analysis
+* Notifications
+* Evidence & Explainability
+* Scenario Lab
+* RM Briefings
+
+Instead of presenting every market event as an alert, WealthLens helps Relationship Managers focus on developments that are most relevant to their clients.
+
+---
+
+**5. Human-in-the-Loop**
+
+The Relationship Manager remains at the centre of the WealthLens architecture.
 
 ```text
-wealthlens/
-│
-├── public/
-│
-├── src/
-│   ├── components/
-│   │   ├── Sidebar
-│   │   ├── Header
-│   │   ├── KPICard
-│   │   ├── IntelligenceCard
-│   │   ├── RelevanceScore
-│   │   ├── EvidencePanel
-│   │   └── PortfolioChart
-│   │
-│   ├── pages/
-│   │   ├── Dashboard
-│   │   ├── Clients
-│   │   ├── ClientProfile
-│   │   ├── Intelligence
-│   │   ├── ScenarioLab
-│   │   ├── Briefings
-│   │   └── ClientView
-│   │
-│   ├── data/
-│   │   ├── clients.js
-│   │   ├── portfolios.js
-│   │   ├── intelligence.js
-│   │   ├── marketEvents.js
-│   │   └── scenarios.js
-│   │
-│   ├── services/
-│   │   ├── clientService.js
-│   │   ├── portfolioService.js
-│   │   └── intelligenceService.js
-│   │
-│   ├── App.jsx
-│   └── main.jsx
-│
-├── index.html
-├── package.json
-├── vite.config.js
-├── vercel.json
-└── README.md
+AI identifies and explains
+          ↓
+RM reviews the evidence
+          ↓
+RM applies professional judgement
+          ↓
+RM engages the client
 ```
 
-The exact structure may change as development progresses.
+WealthLens does **not** autonomously execute trades or make final investment decisions.
+
+The system is designed to augment the Relationship Manager by reducing information overload and improving preparation while preserving human judgement and the personal advisory relationship.
 
 ---
 
-## Running Locally
+## Technical Deployment Architecture
 
-Clone the repository:
+The prototype is designed for deployment on Vercel.
 
-```bash
-git clone <repository-url>
-cd wealthlens
+```mermaid
+flowchart LR
+    U["Relationship Manager<br/>Browser"]
+
+    U -->|"HTTPS"| V["React + Vite<br/>Vercel"]
+
+    V -->|"API Request"| API["Vercel<br/>Serverless API"]
+
+    API --> W["Portfolio &<br/>Relevance Logic"]
+
+    W --> AI["OpenAI API"]
+
+    AI --> API
+
+    API -->|"Structured JSON"| V
+
+    V --> U
 ```
 
-Install dependencies:
-
-```bash
-npm install
-```
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-Create a production build:
-
-```bash
-npm run build
-```
-
----
-
-## Deployment
-
-The application is configured for deployment on Vercel.
-
-### Deploy through GitHub
-
-1. Push the project to GitHub.
-2. Sign in to Vercel.
-3. Select **Add New → Project**.
-4. Import the GitHub repository.
-5. Select **Vite** as the framework if it is not automatically detected.
-6. Confirm the build configuration.
+The OpenAI API key is stored securely as a **server-side Vercel environment variable** and is never exposed through client-side React code.
 
 ```text
-Build Command: npm run build
-Output Directory: dist
-Install Command: npm install
+Browser
+   ↓
+React / Vite Frontend
+   ↓
+Vercel Serverless API
+   ↓
+Portfolio + Relevance Analysis
+   ↓
+OpenAI API
+   ↓
+Structured Intelligence
+   ↓
+WealthLens Dashboard
 ```
 
-7. Deploy the project.
-
-Future pushes to the connected GitHub branch can automatically trigger new deployments.
-
 ---
 
-## Current Prototype Limitations
+## Why This Architecture?
 
-WealthLens is currently a hackathon prototype.
+WealthLens follows four key design principles:
 
-The current version:
+| Principle           | Approach                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| **Accuracy**        | Financial calculations are performed deterministically rather than generated by an LLM |
+| **Explainability**  | Intelligence includes the factors and evidence behind its relevance                    |
+| **Security**        | OpenAI credentials remain server-side and are never exposed to the browser             |
+| **Human Oversight** | Relationship Managers review intelligence before taking client-facing action           |
 
-* Uses fictional client data
-* Uses mock portfolio information
-* Uses simulated market events
-* Uses mock intelligence results
-* Does not provide real financial advice
-* Does not execute trades
-* Does not connect to real client banking information
-* Does not currently implement production authentication or security
-* Does not currently use a live AI model
+### Core Design Philosophy
 
-These components are intentionally separated from the frontend so that real services can be integrated later.
+> **Calculate with code. Explain with AI. Decide with humans.**
 
----
-
-## Future Development
-
-The architecture can later support:
-
-### Real Data Integration
-
-Replace mock data services with APIs for:
-
-* Client information
-* Portfolio holdings
-* Market information
-* Research
-* Investment events
-
-### Intelligence Engine
-
-Future versions could incorporate AI and analytical models to:
-
-* Analyse market developments
-* Identify affected portfolios
-* Connect events with client circumstances
-* Generate explainable intelligence
-* Prioritise Relationship Manager attention
-
-### Responsible AI
-
-Future AI integration should maintain:
-
-* Human oversight
-* Explainability
-* Evidence traceability
-* Data privacy
-* Auditability
-* Appropriate financial-services controls
-
-AI-generated information should support professional judgement rather than independently making investment decisions.
-
----
-
-## Vision
-
-Traditional portfolio monitoring answers:
-
-**“What changed?”**
-
-WealthLens aims to answer:
-
-**“What changed, which client does it matter to, why does it matter, and what should the Relationship Manager review next?”**
-
-### WealthLens
-
-**Turning portfolio monitoring into client intelligence.**
+This allows WealthLens to use AI where it provides the greatest value while maintaining the trust, explainability and human judgement expected in private banking.
