@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { FlaskConical, Info, ArrowLeft, Sparkles } from 'lucide-react'
 import { PageHeader, Card, Badge, Loading } from '../components/ui.jsx'
 import ScenarioPanel from '../components/ScenarioPanel.jsx'
-import { getClientIntelligence, getOfficialClientById } from '../services/dataService.js'
+import { getClientIntelligence, getOfficialClientById, getOfficialClients } from '../services/dataService.js'
 
 // Scenario Lab is scoped to the three presentation clients for this prototype.
 // Each has a real, deterministic backend scenario built from verified data.
@@ -20,20 +20,17 @@ export default function ScenarioLab() {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedId = searchParams.get('client') || ''
 
-  const [supportedClients, setSupportedClients] = useState(null) // [{id,name}]
+  const [allClients, setAllClients] = useState(null) // [{id,name}] — all 20 official
   const [state, setState] = useState({ loading: false })
 
-  // Load the labels for the supported clients (for the selector).
+  // Load all 20 official clients for the selector. Whether a scenario is
+  // actually available is still decided by SUPPORTED_SCENARIO_CLIENTS.
   useEffect(() => {
     let active = true
-    Promise.all(SUPPORTED_SCENARIO_CLIENTS.map((id) => getOfficialClientById(id)))
+    getOfficialClients()
       .then((clients) => {
         if (!active) return
-        setSupportedClients(
-          clients
-            .filter(Boolean)
-            .map((c) => ({ id: c.id, name: c.name }))
-        )
+        setAllClients((clients || []).map((c) => ({ id: c.id, name: c.name })))
       })
     return () => {
       active = false
@@ -101,11 +98,24 @@ export default function ScenarioLab() {
           style={selectStyle}
         >
           <option value="">Select a client…</option>
-          {(supportedClients || []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name} — {SCENARIO_TITLES[c.id]}
-            </option>
-          ))}
+          <optgroup label="Scenario available">
+            {(allClients || [])
+              .filter((c) => SUPPORTED_SCENARIO_CLIENTS.includes(c.id))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — {SCENARIO_TITLES[c.id]} (Available)
+                </option>
+              ))}
+          </optgroup>
+          <optgroup label="Future capability">
+            {(allClients || [])
+              .filter((c) => !SUPPORTED_SCENARIO_CLIENTS.includes(c.id))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} (Future capability)
+                </option>
+              ))}
+          </optgroup>
         </select>
       </Card>
 
