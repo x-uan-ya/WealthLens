@@ -216,18 +216,15 @@ app.get('/api/market/:snapshot', asyncHandler(async (req, res) => {
 app.post('/api/ai/brief/structured', asyncHandler(async (req, res) => {
   const { briefInput } = req.body
   if (!briefInput) return res.status(400).json({ error: 'briefInput is required' })
-  if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'OpenAI API key not configured' })
 
+  // generateRMBrief always resolves: OpenAI when available, deterministic
+  // (verified-data-only) fallback otherwise. No 503 — the feature always works.
   const aiBrief = await generateRMBrief(briefInput)
   res.json({ brief: aiBrief })
 }))
 
 // Generate and save brief for a client in one step
 app.post('/api/clients/:id/brief', asyncHandler(async (req, res) => {
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(503).json({ error: 'OpenAI API key not configured' })
-  }
-
   const { snapshot = LATEST_SNAPSHOT } = req.query
   const intel = getClientIntelligence(req.params.id, snapshot)
   if (!intel) return res.status(404).json({ error: 'Client not found' })
@@ -235,6 +232,7 @@ app.post('/api/clients/:id/brief', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Deep intelligence not available for this client' })
   }
 
+  // OpenAI when available; deterministic fallback otherwise.
   const aiBrief = await generateRMBrief(intel.aiBriefInput)
 
   const brief = createBrief({

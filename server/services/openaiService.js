@@ -103,31 +103,42 @@ export async function generateRMBrief(briefInput) {
     uncertainties,
   })
 
-  const response = await getOpenAI().chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userMessage },
-    ],
-    response_format: { type: 'json_object' },
-    temperature: 0.3,  // Low temperature for factual, consistent output
-    max_tokens: 1500,
-  })
+  // If OpenAI is unavailable (no key, network failure, rate limit, timeout, or
+  // malformed response) we fall back to a deterministic, template-based brief
+  // assembled entirely from the already-verified signals/evidence. It never
+  // invents facts or figures — it only re-presents grounded data in the brief
+  // structure — so the RM Brief feature always works, even offline.
+  let response
+  try {
+    response = await getOpenAI().chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMessage },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,  // Low temperature for factual, consistent output
+      max_tokens: 1500,
+    })
+  } catch (err) {
+    return buildDeterministicBrief(briefInput, `AI unavailable (${err.message})`)
+  }
 
   const raw = response.choices[0]?.message?.content
-  if (!raw) throw new Error('OpenAI returned empty response')
+  if (!raw) return buildDeterministicBrief(briefInput, 'AI returned an empty response')
 
   let parsed
   try {
     parsed = JSON.parse(raw)
   } catch {
-    throw new Error('OpenAI response was not valid JSON')
+    return buildDeterministicBrief(briefInput, 'AI response was not valid JSON')
   }
 
   return {
     ...parsed,
     _metadata: {
       clientId: clientContext?.clientId,
+      source: 'openai',
       model: response.model,
       generatedAt: new Date().toISOString(),
       inputSignalCount: signals?.length || 0,
@@ -135,6 +146,111 @@ export async function generateRMBrief(briefInput) {
       governanceNote: 'AI-generated explanatory brief. All figures are pre-calculated. AI has not made investment decisions.',
     },
   }
+}
+
+// ─── Deterministic Fallback Brief (no AI) ───────────────────────────────────────
+
+/**
+ * Assembles an RM brief with NO AI, using only the verified inputs. Produced
+ * when OpenAI is unavailable so the feature degrades gracefully rather than
+ * failing. Governance is preserved by construction: every sentence is built
+ * from supplied signals/evidence/events — nothing is generated or inferred, no
+ * figures are calculated, no 2026 events are introduced beyond those supplied.
+ *
+ * Output matches the OpenAI brief shape so the frontend needs no changes.
+ *
+ * @param {object} briefInput
+ * @param {string} reason - why the fallback was used (for metadata/transparency)
+ */
+export function buildDeterministicBrief(briefInput, reason = 'AI unavailable') {
+  const {
+    clientContext = {},
+    signals = [],
+    evidence = [],
+    authoritativeEvents = [],
+    scenario,
+    uncertainties = [],
+  } = briefInput || {}
+
+  const name = clientContext.clientName || clientContext.clientId || 'the client'
+  const sorted = [...signals].sort((a, b) => sev(b.severity) - sev(a.severity))
+  const top = sorted[0]
+
+  // Summary — states what the highest-severity signals are, verbatim titles.
+  const summary = sorted.length
+    ? `${sorted.length} signal${sorted.length > 1 ? 's have' : ' has'} been identified for ${name}. ` +
+      `The most material is: ${top.title}. ${top.summary || ''}`.trim()
+    : `No material signals are currently on record for ${name}.`
+
+  // Why it matters — ties each signal to the client's stated objective/context,
+  // using only fields already present.
+  const objective = clientContext.investmentObjective
+  const whyParts = sorted.map((s) => `${s.title} — ${s.summary || 'see verified metrics'}`)
+  const whyItMatters =
+    (objective ? `Stated objective on record: "${objective}". ` : '') +
+    (whyParts.length
+      ? `Relative to this, the following are on record: ${whyParts.join('; ')}.`
+      : 'No signals to relate to the client objective at this time.')
+
+  // Discussion points — one per signal, framed as a consideration (never advice).
+  const discussionPoints = sorted.map(
+    (s) => `Review with the client: ${s.title}.`
+  )
+  if (scenario?.scenarioName) {
+    discussionPoints.push(
+      `Discuss the ${scenario.scenarioName} stress scenario as a preparation aid — this is not a forecast.`
+    )
+  }
+
+  // Uncertainties — collected verbatim from signals + explicit input list.
+  const signalUncertainties = sorted.flatMap((s) =>
+    Array.isArray(s.uncertainty) ? s.uncertainty : s.uncertainty ? [s.uncertainty] : []
+  )
+  const allUncertainties = [...new Set([...uncertainties, ...signalUncertainties])]
+  if (allUncertainties.length === 0) allUncertainties.push('No specific uncertainties recorded.')
+
+  // Evidence references — real source records only.
+  const evidenceReferences = evidence
+    .map((e) => {
+      const rec = e.recordId || (Array.isArray(e.recordIds) ? e.recordIds.join(', ') : null)
+      return [e.source, rec].filter(Boolean).join(' · ')
+    })
+    .filter(Boolean)
+  for (const ev of authoritativeEvents) {
+    evidenceReferences.push(`event_log.csv · ${ev.eventId} (${ev.title})`)
+  }
+
+  const clientFriendlySummary = top
+    ? `There is a point worth discussing about your portfolio: ${top.title.toLowerCase()}. Your Relationship Manager will walk you through it.`
+    : `Your Relationship Manager will be in touch with any relevant updates.`
+
+  const rmPreparationNotes =
+    `Prepared without AI (${reason}). This brief lists the verified signals and their evidence for ${name}. ` +
+    `Confirm the figures against the source records before the conversation. The RM remains responsible for all judgements.`
+
+  return {
+    summary,
+    whyItMatters,
+    discussionPoints,
+    uncertainties: allUncertainties,
+    evidenceReferences,
+    clientFriendlySummary,
+    rmPreparationNotes,
+    _metadata: {
+      clientId: clientContext.clientId,
+      source: 'deterministic-fallback',
+      fallbackReason: reason,
+      generatedAt: new Date().toISOString(),
+      inputSignalCount: signals.length,
+      inputEventCount: authoritativeEvents.length,
+      governanceNote:
+        'Deterministic brief assembled from verified data only (no AI). No figures calculated, no events invented, no investment decisions made.',
+    },
+  }
+}
+
+function sev(s) {
+  return { high: 3, medium: 2, low: 1 }[(s || '').toLowerCase()] ?? 0
 }
 
 // ─── Build User Message ────────────────────────────────────────────────────────
