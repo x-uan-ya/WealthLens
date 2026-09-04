@@ -6,3 +6,16 @@ dist-ssr
 .vscode/*
 !.vscode/extensions.json
 .env
+.env.*
+!.env.example
+
+# Build artifacts / archives
+*.zip
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs
+*.log

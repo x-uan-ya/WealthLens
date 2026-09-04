@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ResponsiveContainer,
   BarChart,
@@ -53,14 +53,17 @@ const PRESETS = [
   { key: 'tech10',       label: 'Technology −10%',      equity: -10, rate:   0, fx:  -5 },
 ]
 
-export default function ScenarioLab() {
-  const [searchParams] = useSearchParams()
-  const [clients, setClients] = useState(null)
-  const [clientId, setClientId] = useState(searchParams.get('client') || 'all')
-  const [equity, setEquity] = useState(-20)
-  const [rate, setRate] = useState(0)
-  const [fx, setFx] = useState(0)
-  const [preset, setPreset] = useState('equity')
+// ---------------------------------------------------------------------------
+// Shared impact calculator — used for both concentration rows and holdings.
+// ---------------------------------------------------------------------------
+function calcImpactPct(assetClassLabel, weightPct, equity, rate, fx) {
+  const s = SENSITIVITY[assetClassLabel] ?? SENSITIVITY_DEFAULT
+  return (weightPct / 100) * (
+    s.equity * (equity / 100) +
+    s.rate   * (rate   / 100) +
+    s.fx     * (fx     / 100)
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Technology-holding detector.
@@ -97,8 +100,9 @@ function calcHoldingImpactPct(holdingName, assetClassLabel, weightPct, equity, r
 }
 
 export default function ScenarioLab() {
+  const [searchParams] = useSearchParams()
   const [clients,   setClients]   = useState(null)
-  const [clientId,  setClientId]  = useState('all')
+  const [clientId,  setClientId]  = useState(searchParams.get('client') || 'all')
   const [portfolio, setPortfolio] = useState(null)
   const [equity,    setEquity]    = useState(-20)
   const [rate,      setRate]      = useState(0)
