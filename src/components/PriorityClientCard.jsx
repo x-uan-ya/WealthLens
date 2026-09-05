@@ -21,7 +21,7 @@ export default function PriorityClientCard({ client, intelligence, rank }) {
   const tone = PRIORITY_TONE[priority] || 'neutral'
 
   return (
-    <Link to={`/clients/${client.id}`} className="card priority-client-card" data-priority={priority}>
+    <Link to={`/clients/${client.id}`} className="card priority-client-card" data-priority={priority} style={{ '--priority-score': `${Math.min(100, Math.max(0, intelligence?.priorityScore ?? 0))}%` }}>
       <div className="pcc-accent" data-priority={priority} />
       <div className="pcc-body">
         <div className="pcc-top">
@@ -59,6 +59,7 @@ export default function PriorityClientCard({ client, intelligence, rank }) {
               Priority <strong>{intelligence.priorityScore}</strong>
             </span>
           )}
+          {intelligence?.priorityScore != null && <span className="pcc-priority-bar" aria-label={`Priority score ${intelligence.priorityScore} out of 100`} />}
           <span className="link-gold" style={{ marginLeft: 'auto', fontSize: 12.5 }}>
             Review <ArrowRight size={13} />
           </span>
