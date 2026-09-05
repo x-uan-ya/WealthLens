@@ -2049,23 +2049,7 @@ input[type='range']::-moz-range-thumb {
 }
 
 /* ==========================================================================\n+   Overview reference layout\n+   ========================================================================== */
-.app:has(.overview-page) { grid-template-columns: 165px 1fr; }
-.app:has(.overview-page) .sidebar { padding: 24px 10px 18px; }
-.app:has(.overview-page) .brand { justify-content: center; padding: 0 4px 24px; }
-.app:has(.overview-page) .brand-mark { display: none; }
-.app:has(.overview-page) .brand-name { font-size: 20px; color: #e6c77b; text-align: center; }
-.app:has(.overview-page) .brand-sub { text-align: center; font-size: 8px; letter-spacing: 0.22em; }
-.app:has(.overview-page) .nav { margin-top: 8px; gap: 3px; }
-.app:has(.overview-page) .nav-label { display: none; }
-.app:has(.overview-page) .nav-item { gap: 11px; padding: 10px 12px; font-size: 12px; border-radius: 7px; }
-.app:has(.overview-page) .nav-item.active::before { left: -10px; }
-.app:has(.overview-page) .sidebar-foot { padding: 14px 12px 2px; }
-.app:has(.overview-page) .sidebar-foot .nav-label { display: block; padding: 0 0 4px !important; font-size: 8px; }
-.app:has(.overview-page) .sidebar-foot .aum { font-size: 16px; }
-.app:has(.overview-page) .topbar { position: absolute; top: 0; right: 0; left: 165px; background: transparent; border-bottom: 0; backdrop-filter: none; height: 58px; padding: 0 24px; }
-.app:has(.overview-page) .topbar .search { display: none; }
 .app:has(.overview-page) .content { max-width: none; padding: 26px 18px 36px; }
-.app:has(.overview-page) .rm-chip { border-color: transparent; background: rgba(255,255,255,0.5); }
 
 .overview-page { max-width: 1080px; margin: 0 auto; }
 .overview-head { position: relative; min-height: 118px; padding: 16px 18px 10px; margin: 0 -18px 14px; overflow: hidden; align-items: flex-end; border-bottom: 1px solid rgba(216, 211, 200, 0.7); }
@@ -2139,8 +2123,6 @@ input[type='range']::-moz-range-thumb {
 .overview-show-more { display: flex; align-items: center; gap: 5px; margin: 9px auto; }
 
 @media (max-width: 760px) {
-  .app:has(.overview-page) { grid-template-columns: 1fr; }
-  .app:has(.overview-page) .topbar { left: 0; }
   .overview-head { min-height: 155px; }
   .overview-quote { display: none; }
   .overview-signal { position: absolute; left: 18px; bottom: 12px; }
