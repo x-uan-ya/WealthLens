@@ -11,63 +11,72 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  Legend,
 } from 'recharts'
 import { PageHeader, Card, Loading } from '../components/ui.jsx'
-import { getClients, getAllPortfolios } from '../services/dataService.js'
-import { formatChf, formatPct } from '../utils/format.js'
+import { getOfficialBook } from '../services/dataService.js'
+import { formatUsd, formatPct } from '../utils/format.js'
 
+// Official asset-class palette (matches asset_class values in holdings.csv).
 const CLASS_COLORS = {
-  Equities: '#0d2a3a',
-  'Fixed income': '#3a6070',
-  'Real estate': '#b3872f',
-  'Private markets': '#8a9ba3',
-  Cash: '#cdd8dd',
-  Derivatives: '#6b7a83',
+  Equity: '#0d2a3a',
+  'Fixed Income': '#3a6070',
   Alternatives: '#c8a24a',
+  'Structured Products': '#b3872f',
+  'Cash and Equivalents': '#cdd8dd',
+  'Real Estate': '#8a9ba3',
+  Commodities: '#9c6f2f',
+  Unknown: '#6b7a83',
 }
 
+const colorFor = (label) => CLASS_COLORS[label] || '#8a9ba3'
+
 export default function Portfolios() {
-  const [clients, setClients] = useState(null)
-  const [portfolios, setPortfolios] = useState(null)
+  const [book, setBook] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
-    getClients().then((cs) => {
-      setClients(cs)
-      setSelectedId(cs[0]?.id)
+    let active = true
+    getOfficialBook().then((rows) => {
+      if (!active) return
+      setBook(rows)
+      setSelectedId(rows[0]?.id)
     })
-    getAllPortfolios().then(setPortfolios)
+    return () => {
+      active = false
+    }
   }, [])
 
   const bookAllocation = useMemo(() => {
-    if (!clients) return []
+    if (!book) return []
     const totals = {}
     let totalAum = 0
-    for (const c of clients) {
-      totalAum += c.aumChf
-      for (const a of c.concentration) {
-        totals[a.label] = (totals[a.label] || 0) + (a.pct / 100) * c.aumChf
+    for (const c of book) {
+      totalAum += c.aumUsd
+      for (const a of c.allocation) {
+        totals[a.label] = (totals[a.label] || 0) + (a.valueUsd || 0)
       }
     }
     return Object.entries(totals)
-      .map(([label, value]) => ({ label, value, pct: (value / totalAum) * 100 }))
+      .map(([label, value]) => ({ label, value, pct: totalAum > 0 ? (value / totalAum) * 100 : 0 }))
       .sort((a, b) => b.value - a.value)
-  }, [clients])
+  }, [book])
 
-  if (!clients || !portfolios) return <Loading label="Aggregating portfolios" />
+  if (!book) return <Loading label="Aggregating portfolios" />
 
-  const selected = clients.find((c) => c.id === selectedId)
-  const selectedPortfolio = portfolios[selectedId]
-  const totalAum = clients.reduce((s, c) => s + c.aumChf, 0)
+  const selected = book.find((c) => c.id === selectedId)
+  const totalAum = book.reduce((s, c) => s + c.aumUsd, 0)
+  const perfData = (selected?.valueSeries || []).map((p) => ({
+    date: p.date?.slice(2), // e.g. 26-08-26 -> compact label
+    value: Math.round((p.totalUsd / 1_000_000) * 10) / 10,
+  }))
 
   return (
     <div>
       <PageHeader
         eyebrow="Portfolios"
         title="Book composition"
-        subtitle="How your clients' capital is allocated across the book, and how individual mandates are tracking."
+        subtitle="How your clients' capital is allocated across the book, and how individual mandates are tracking. Cross-client figures are shown in USD (market_value_usd)."
       />
 
       <div className="grid" style={{ gridTemplateColumns: '1fr 1.4fr', marginBottom: 24, alignItems: 'start' }}>
@@ -87,13 +96,10 @@ export default function Portfolios() {
                     stroke="none"
                   >
                     {bookAllocation.map((a) => (
-                      <Cell key={a.label} fill={CLASS_COLORS[a.label] || '#8a9ba3'} />
+                      <Cell key={a.label} fill={colorFor(a.label)} />
                     ))}
                   </Pie>
-                  <Tooltip
-                    formatter={(v, n) => [formatChf(v), n]}
-                    contentStyle={tooltipStyle}
-                  />
+                  <Tooltip formatter={(v, n) => [formatUsd(v), n]} contentStyle={tooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -101,7 +107,7 @@ export default function Portfolios() {
               {bookAllocation.map((a) => (
                 <div className="row between" key={a.label} style={{ padding: '6px 0', fontSize: 13.5 }}>
                   <span className="row" style={{ gap: 8 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: CLASS_COLORS[a.label] || '#8a9ba3' }} />
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: colorFor(a.label) }} />
                     {a.label}
                   </span>
                   <span style={{ fontWeight: 600 }}>{a.pct.toFixed(1)}%</span>
@@ -114,7 +120,7 @@ export default function Portfolios() {
         <Card>
           <div className="card-head">
             <h3>Book at a glance</h3>
-            <span className="muted" style={{ fontSize: 12.5 }}>{formatChf(totalAum)} total</span>
+            <span className="muted" style={{ fontSize: 12.5 }}>{formatUsd(totalAum)} total</span>
           </div>
           <table className="table">
             <thead>
@@ -126,13 +132,16 @@ export default function Portfolios() {
               </tr>
             </thead>
             <tbody>
-              {clients.map((c) => (
-                <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)}>
+              {book.map((c) => (
+                <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} style={{ cursor: 'pointer' }}>
                   <td style={{ fontWeight: 600 }}>{c.name}</td>
                   <td className="muted">{c.mandate}</td>
-                  <td>{formatChf(c.aumChf)}</td>
-                  <td className={c.ytdReturn >= 0 ? 'pos' : 'neg'} style={{ fontWeight: 600 }}>
-                    {formatPct(c.ytdReturn, { sign: true })}
+                  <td>{formatUsd(c.aumUsd)}</td>
+                  <td
+                    className={c.ytdReturn == null ? 'muted' : c.ytdReturn >= 0 ? 'pos' : 'neg'}
+                    style={{ fontWeight: 600 }}
+                  >
+                    {c.ytdReturn == null ? '—' : formatPct(c.ytdReturn, { sign: true })}
                   </td>
                 </tr>
               ))}
@@ -141,25 +150,25 @@ export default function Portfolios() {
         </Card>
       </div>
 
-      {/* Per-client performance explorer */}
+      {/* Per-client value + allocation explorer */}
       <Card>
         <div className="card-head">
-          <h3>Mandate performance</h3>
+          <h3>Portfolio value & allocation</h3>
           <select
-            value={selectedId}
+            value={selectedId || ''}
             onChange={(e) => setSelectedId(e.target.value)}
             style={selectStyle}
           >
-            {clients.map((c) => (
+            {book.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
         <div className="card-pad">
-          {selectedPortfolio && (
+          {selected && perfData.length > 0 && (
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={selectedPortfolio.performance} margin={{ left: -14, right: 8, top: 8 }}>
+                <AreaChart data={perfData} margin={{ left: -14, right: 8, top: 8 }}>
                   <defs>
                     <linearGradient id="pf2" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#0d2a3a" stopOpacity={0.16} />
@@ -167,38 +176,48 @@ export default function Portfolios() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6b7a83' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: '#6b7a83' }} axisLine={false} tickLine={false} domain={['dataMin - 1', 'dataMax + 1']} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 13 }} />
-                  <Area type="monotone" dataKey="portfolio" name="Portfolio" stroke="#0d2a3a" strokeWidth={2.4} fill="url(#pf2)" />
-                  <Area type="monotone" dataKey="benchmark" name="Benchmark" stroke="#b3872f" strokeWidth={1.6} fillOpacity={0} strokeDasharray="4 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#6b7a83' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 12, fill: '#6b7a83' }}
+                    axisLine={false}
+                    tickLine={false}
+                    domain={['dataMin - 1', 'dataMax + 1']}
+                    tickFormatter={(v) => `US$${v}m`}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`US$${v}m`, 'Total value']} />
+                  <Area type="monotone" dataKey="value" name="Total value (USD m)" stroke="#0d2a3a" strokeWidth={2.4} fill="url(#pf2)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           )}
-          {selected && selectedPortfolio && (
+          {selected && (
             <div className="grid cols-2" style={{ marginTop: 16, gap: 16 }}>
               <div>
-                <div className="eyebrow" style={{ marginBottom: 8 }}>Top holdings</div>
-                {selectedPortfolio.topHoldings.map((h) => (
-                  <div className="kv" key={h.name}>
-                    <span className="k">{h.name}</span>
-                    <span className="v">{h.weight}%</span>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Snapshot totals</div>
+                {(selected.valueSeries || []).map((p) => (
+                  <div className="kv" key={p.date}>
+                    <span className="k">{p.date}</span>
+                    <span className="v">{formatUsd(p.totalUsd)}</span>
                   </div>
                 ))}
+                {(!selected.valueSeries || selected.valueSeries.length === 0) && (
+                  <span className="muted" style={{ fontSize: 13 }}>No snapshot data.</span>
+                )}
               </div>
               <div>
-                <div className="eyebrow" style={{ marginBottom: 8 }}>Allocation</div>
-                {selected.concentration.map((a) => (
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Allocation (latest snapshot)</div>
+                {selected.allocation.map((a) => (
                   <div className="alloc-row" key={a.label}>
                     <span className="a-label">{a.label}</span>
                     <span className="a-track">
-                      <span className="a-fill" style={{ width: `${a.pct}%`, background: CLASS_COLORS[a.label] || '#0d2a3a' }} />
+                      <span className="a-fill" style={{ width: `${a.pct}%`, background: colorFor(a.label) }} />
                     </span>
                     <span className="a-pct">{a.pct}%</span>
                   </div>
                 ))}
+                {selected.allocation.length === 0 && (
+                  <span className="muted" style={{ fontSize: 13 }}>No allocation data.</span>
+                )}
               </div>
             </div>
           )}

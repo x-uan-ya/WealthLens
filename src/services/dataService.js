@@ -204,6 +204,146 @@ export const getSnapshotDates = async () => {
   return health.snapshots || []
 }
 
+// Official aggregated portfolio for a client at the latest snapshot
+// (allocation by asset class + per-portfolio breakdown, in USD).
+export const getOfficialPortfolio = async (id) => {
+  try {
+    return await fetchJson(`/api/clients/${id}/portfolio`)
+  } catch {
+    return null
+  }
+}
+
+// Official five-snapshot value history for a client (USD totals).
+export const getOfficialSnapshots = async (id) => {
+  try {
+    return await fetchJson(`/api/clients/${id}/snapshots`)
+  } catch {
+    return null
+  }
+}
+
+// ─── Official briefings (grounded RM briefs) ─────────────────────────────────
+//
+// The Briefings page lists one briefing per client that has deep intelligence
+// (a grounded brief can be produced). The list loads fast from the priority
+// ranking + intelligence check; the full brief body is generated on demand
+// (server-side OpenAI when available, deterministic fallback otherwise) via
+// generateClientBrief and mapped to the fields the Briefings UI renders.
+
+const MEETING_TYPE_BY_PRIORITY = {
+  critical: 'Priority review',
+  high: 'Portfolio review',
+  medium: 'Check-in',
+  low: 'Check-in',
+}
+
+// Build the scheduled briefings list from the official book. Only clients with
+// deep intelligence get a briefing (those the engine can ground a brief for).
+export const getOfficialBriefings = async () => {
+  const { raw } = await loadPriorityIndex()
+  const ranked = raw?.prioritisedList || []
+
+  // Check which clients actually have intelligence signals (deep clients).
+  const withIntel = await Promise.all(
+    ranked.map(async (r) => ({ r, has: await hasClientIntelligence(r.clientId) }))
+  )
+  const deep = withIntel.filter((x) => x.has).map((x) => x.r)
+
+  // Space the meetings out over the coming days for a realistic schedule.
+  const now = Date.now()
+  const DAY = 24 * 60 * 60 * 1000
+  return deep.map((r, i) => ({
+    id: `BRIEF-${r.clientId}`,
+    clientId: r.clientId,
+    clientName: r.clientName,
+    meetingType: MEETING_TYPE_BY_PRIORITY[(r.priority || '').toLowerCase()] || 'Review',
+    priority: normalisePriority(r.priority),
+    status: 'Draft',
+    scheduledFor: new Date(now + (i + 1) * DAY).toISOString(),
+    summary: `${r.clientName} — ${r.whyThisClient?.[0] || 'priority review'}.`,
+    _loaded: false,
+  }))
+}
+
+// Generate + map a client's grounded brief into the enhanced-briefing fields
+// the Briefings page renders (situation, whyItMatters, keyEvidence,
+// talkingPoints, prep, sources). Returns null if generation fails entirely.
+export const getOfficialBriefingContent = async (clientId) => {
+  const brief = await generateClientBrief(clientId)
+  if (!brief) return null
+  const meta = brief._metadata || {}
+  return {
+    situation: brief.situation || '',
+    whyItMatters: brief.whyItMatters || '',
+    keyEvidence: (brief.verifiedEvidence || [])
+      .map((e) => (typeof e === 'string' ? e : [e.label, e.value].filter(Boolean).join(' — ')))
+      .filter(Boolean),
+    talkingPoints: brief.discussionPoints || [],
+    prep: brief.clientContext
+      ? String(brief.clientContext).split('\n').map((s) => s.trim()).filter(Boolean)
+      : [],
+    sources: deriveBriefSources(brief),
+    clientFriendlySummary: brief.clientFriendlySummary || '',
+    uncertainty: brief.uncertainty || '',
+    generatedBy: meta.source || 'unknown',
+    _metadata: meta,
+  }
+}
+
+// Pull distinct CSV/record sources out of the brief's evidence references.
+function deriveBriefSources(brief) {
+  const refs = brief.verifiedEvidence || []
+  const set = new Set()
+  for (const e of refs) {
+    const text = typeof e === 'string' ? e : `${e.label || ''} ${e.value || ''}`
+    // Grab things that look like a source file (foo.csv / foo.json).
+    const matches = text.match(/[\w-]+\.(csv|json)/gi) || []
+    matches.forEach((m) => set.add(m))
+  }
+  return set.size > 0 ? [...set] : ['holdings.csv', 'event_log.csv', 'rm_notes.json']
+}
+
+// Book-level composition for the Portfolios page. Aggregates the official
+// 20-client book from the engine: per-client AUM (USD), current allocation, a
+// YTD figure derived from the first vs latest snapshot total, and the mandate
+// code(s). No fabricated figures — everything comes from /api/*.
+export const getOfficialBook = async () => {
+  const clients = await getOfficialClients()
+  const rows = await Promise.all(
+    clients.map(async (c) => {
+      const [portfolio, snapshots] = await Promise.all([
+        getOfficialPortfolio(c.id),
+        getOfficialSnapshots(c.id),
+      ])
+      const history = (snapshots?.history || []).filter((h) => h.hasData && typeof h.totalUsd === 'number')
+      const first = history[0]
+      const last = history[history.length - 1]
+      const ytdReturn =
+        first && last && first.totalUsd > 0
+          ? Math.round(((last.totalUsd - first.totalUsd) / first.totalUsd) * 1000) / 10
+          : null
+      const mandateCodes = [...new Set((portfolio?.portfolios || []).map((p) => p.mandateCode).filter(Boolean))]
+      return {
+        id: c.id,
+        name: c.name,
+        baseCurrency: c.baseCurrency,
+        priority: c.priority,
+        mandate: mandateCodes.join(', ') || '—',
+        aumUsd: portfolio?.totalUsd ?? c.aumUsd ?? 0,
+        ytdReturn,
+        allocation: (portfolio?.allocation || []).map((a) => ({
+          label: a.assetClass,
+          pct: a.weightPct,
+          valueUsd: a.valueUsd,
+        })),
+        valueSeries: history.map((h) => ({ date: h.snapshotDate, totalUsd: h.totalUsd })),
+      }
+    })
+  )
+  return rows
+}
+
 // The dashboard priority ranking (raw engine output).
 export const getPriorityRanking = async () => {
   const { raw } = await loadPriorityIndex()

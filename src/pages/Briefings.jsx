@@ -13,13 +13,15 @@ import {
   CheckCheck,
 } from 'lucide-react'
 import { PageHeader, Card, Badge, Loading } from '../components/ui.jsx'
-import { getBriefings, getIntelligence } from '../services/dataService.js'
+import { getOfficialBriefings, getOfficialBriefingContent } from '../services/dataService.js'
 import { formatDateTime, initialsOf } from '../utils/format.js'
 
 export default function Briefings() {
   const [briefings, setBriefings] = useState(null)
-  const [signals,   setSignals]   = useState([])
   const [activeId,  setActiveId]  = useState(null)
+  // Generated brief bodies, cached per briefing id once produced.
+  const [content,   setContent]   = useState({})
+  const [generating, setGenerating] = useState(false)
   // Local-only status overrides — "Mark Ready" toggles without touching data files.
   const [readyIds,  setReadyIds]  = useState(new Set())
   // Tracks which briefing currently shows "Copied" feedback.
@@ -29,7 +31,7 @@ export default function Briefings() {
   const [searchParams] = useSearchParams()
 
   useEffect(() => {
-    getBriefings().then((bs) => {
+    getOfficialBriefings().then((bs) => {
       const sorted = [...bs].sort((a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor))
       setBriefings(sorted)
       // If ?client=<id> is present, open that client's briefing automatically.
@@ -40,23 +42,60 @@ export default function Briefings() {
         : null
       setActiveId(matched?.id ?? sorted[0]?.id)
     })
-    getIntelligence().then(setSignals)
   }, [])
+
+  // Generate the selected briefing's body on demand (once), then cache it.
+  useEffect(() => {
+    if (!activeId || !briefings) return
+    if (content[activeId]) return
+    const b = briefings.find((x) => x.id === activeId)
+    if (!b) return
+    let active = true
+    setGenerating(true)
+    getOfficialBriefingContent(b.clientId)
+      .then((c) => {
+        if (active) setContent((prev) => ({ ...prev, [activeId]: c || { _failed: true } }))
+      })
+      .finally(() => {
+        if (active) setGenerating(false)
+      })
+    return () => { active = false }
+  }, [activeId, briefings])
 
   if (!briefings) return <Loading label="Assembling briefings" />
 
-  const active = briefings.find((b) => b.id === activeId)
-  const relatedSignals = active
-    ? signals.filter((s) => active.relatedSignals.includes(s.id))
-    : []
+  if (briefings.length === 0) {
+    return (
+      <div>
+        <PageHeader
+          eyebrow="Briefings"
+          title="Walk in prepared"
+          subtitle="Each briefing packages the intelligence behind a meeting into talking points and a prep checklist."
+        />
+        <Card className="card-pad">
+          <p className="muted" style={{ margin: 0 }}>
+            No clients currently have grounded intelligence to brief on. Briefings appear here
+            for clients with deep analysis.
+          </p>
+        </Card>
+      </div>
+    )
+  }
 
-  // A briefing is "enhanced" when it carries the extended intelligence-brief
-  // fields added for Page 7. Older briefings fall back to the original layout.
+  const stub = briefings.find((b) => b.id === activeId)
+  const generated = content[activeId]
+  // Merge the schedule stub with the generated brief body so the render code
+  // can read all fields off one object.
+  const active = stub ? { ...stub, ...(generated && !generated._failed ? generated : {}) } : null
+
+  // A briefing is "enhanced" when it carries generated intelligence-brief fields.
   const isEnhanced = !!(active?.situation)
 
   // Derive effective status — local override wins over data-file value.
   const effectiveStatus = (b) =>
     readyIds.has(b.id) ? 'Ready' : b.status
+
+  const activeGeneratedFailed = generated?._failed
 
   // ── Action handlers ───────────────────────────────────────────────────────
 
@@ -194,57 +233,21 @@ export default function Briefings() {
               </div>
             </Card>
 
-            {/* ── Enhanced layout — shown when new fields are present ── */}
-            {isEnhanced
-              ? <IntelligenceBrief briefing={active} />
-              : (
-                /* ── Legacy layout — original cols-2 grid for older briefings ── */
-                <div className="grid cols-2" style={{ alignItems: 'start' }}>
-                  <Card className="card-pad">
-                    <div className="eyebrow row" style={{ gap: 8, marginBottom: 12 }}>
-                      <Sparkles size={14} color="var(--gold)" /> Talking points
-                    </div>
-                    {active.talkingPoints.map((tp, i) => (
-                      <div className="talking-point" key={i}>
-                        <span className="n">{String(i + 1).padStart(2, '0')}</span>
-                        <span>{tp}</span>
-                      </div>
-                    ))}
-                  </Card>
-
-                  <Card className="card-pad">
-                    <div className="eyebrow" style={{ marginBottom: 12 }}>Prep checklist</div>
-                    <ul className="checklist">
-                      {active.prep.map((p, i) => (
-                        <li key={i}>
-                          <CheckCircle2 size={16} /> <span>{p}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </Card>
-                </div>
-              )
-            }
-
-            {/* ── Related intelligence — shown for all briefings when present ── */}
-            {relatedSignals.length > 0 && (
-              <Card>
-                <div className="card-head"><h3>Intelligence behind this meeting</h3></div>
-                <div>
-                  {relatedSignals.map((s) => (
-                    <div className="briefing-item" key={s.id}>
-                      <div className="row between wrap" style={{ gap: 8 }}>
-                        <span className="row wrap" style={{ gap: 8 }}>
-                          <Badge tone={s.priority}>{s.category}</Badge>
-                          <strong style={{ fontSize: 14 }}>{s.headline}</strong>
-                        </span>
-                      </div>
-                      <p className="soft" style={{ fontSize: 13.5, margin: '8px 0 0' }}>{s.why}</p>
-                    </div>
-                  ))}
-                </div>
+            {/* ── Brief body ── */}
+            {isEnhanced ? (
+              <IntelligenceBrief briefing={active} />
+            ) : generating ? (
+              <Card className="card-pad">
+                <Loading label="Generating grounded brief" />
               </Card>
-            )}
+            ) : activeGeneratedFailed ? (
+              <Card className="card-pad">
+                <p className="muted" style={{ margin: 0 }}>
+                  Could not generate this brief. Ensure the API server is running, then reopen
+                  this briefing to retry.
+                </p>
+              </Card>
+            ) : null}
           </div>
         )}
       </div>
