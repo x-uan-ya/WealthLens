@@ -22,6 +22,10 @@ export const formatMoney = (value, { compact = true, currency = CURRENCY } = {})
 // sites still use formatChf but now render the desk currency.
 export const formatChf = (value, opts) => formatMoney(value, opts)
 
+// USD formatter — used for cross-client (book-level) figures, which the
+// official dataset denominates in USD (market_value_usd).
+export const formatUsd = (value, opts = {}) => formatMoney(value, { ...opts, currency: 'US$' })
+
 export const formatPct = (value, { sign = false } = {}) => {
   if (value == null) return '—'
   const s = sign && value > 0 ? '+' : ''

@@ -204,6 +204,127 @@ export const getSnapshotDates = async () => {
   return health.snapshots || []
 }
 
+// Official aggregated portfolio for a client at the latest snapshot
+// (allocation by asset class + per-portfolio breakdown, in USD).
+export const getOfficialPortfolio = async (id) => {
+  try {
+    return await fetchJson(`/api/clients/${id}/portfolio`)
+  } catch {
+    return null
+  }
+}
+
+// Official five-snapshot value history for a client (USD totals).
+export const getOfficialSnapshots = async (id) => {
+  try {
+    return await fetchJson(`/api/clients/${id}/snapshots`)
+  } catch {
+    return null
+  }
+}
+
+// ─── Official briefings (grounded RM briefs) ─────────────────────────────────
+//
+// The Briefings page lists one briefing per client that has deep intelligence
+// (a grounded brief can be produced). The list loads fast from the priority
+// ranking + intelligence check; the full brief body is generated on demand
+// (server-side OpenAI when available, deterministic fallback otherwise) via
+// generateClientBrief and mapped to the fields the Briefings UI renders.
+
+const MEETING_TYPE_BY_PRIORITY = {
+  critical: 'Priority review',
+  high: 'Portfolio review',
+  medium: 'Check-in',
+  low: 'Check-in',
+}
+
+// Build the scheduled briefings list from the official book. Only clients with
+// deep intelligence get a briefing (those the engine can ground a brief for).
+export const getOfficialBriefings = async () => {
+  const { raw } = await loadPriorityIndex()
+  const ranked = raw?.prioritisedList || []
+
+  // Check which clients actually have intelligence signals (deep clients).
+  const withIntel = await Promise.all(
+    ranked.map(async (r) => ({ r, has: await hasClientIntelligence(r.clientId) }))
+  )
+  const deep = withIntel.filter((x) => x.has).map((x) => x.r)
+
+  // Space the meetings out over the coming days for a realistic schedule.
+  const now = Date.now()
+  const DAY = 24 * 60 * 60 * 1000
+  return deep.map((r, i) => ({
+    id: `BRIEF-${r.clientId}`,
+    clientId: r.clientId,
+    clientName: r.clientName,
+    meetingType: MEETING_TYPE_BY_PRIORITY[(r.priority || '').toLowerCase()] || 'Review',
+    priority: normalisePriority(r.priority),
+    status: 'Draft',
+    scheduledFor: new Date(now + (i + 1) * DAY).toISOString(),
+    summary: `${r.clientName} — ${r.whyThisClient?.[0] || 'priority review'}.`,
+    _loaded: false,
+  }))
+}
+
+// Generate + map a client's grounded brief into the enhanced-briefing fields
+// the Briefings page renders (situation, whyItMatters, keyEvidence,
+// talkingPoints, prep, sources). Returns null if generation fails entirely.
+export const getOfficialBriefingContent = async (clientId) => {
+  const brief = await generateClientBrief(clientId)
+  if (!brief) return null
+  const meta = brief._metadata || {}
+  return {
+    situation: brief.situation || '',
+    whyItMatters: brief.whyItMatters || '',
+    keyEvidence: (brief.verifiedEvidence || [])
+      .map((e) => (typeof e === 'string' ? e : [e.label, e.value].filter(Boolean).join(' — ')))
+      .filter(Boolean),
+    talkingPoints: brief.discussionPoints || [],
+    prep: brief.clientContext
+      ? String(brief.clientContext).split('\n').map((s) => s.trim()).filter(Boolean)
+      : [],
+    sources: deriveBriefSources(brief),
+    clientFriendlySummary: brief.clientFriendlySummary || '',
+    uncertainty: brief.uncertainty || '',
+    generatedBy: meta.source || 'unknown',
+    _metadata: meta,
+  }
+}
+
+// Pull distinct CSV/record sources out of the brief's evidence references.
+function deriveBriefSources(brief) {
+  const refs = brief.verifiedEvidence || []
+  const set = new Set()
+  for (const e of refs) {
+    const text = typeof e === 'string' ? e : `${e.label || ''} ${e.value || ''}`
+    // Grab things that look like a source file (foo.csv / foo.json).
+    const matches = text.match(/[\w-]+\.(csv|json)/gi) || []
+    matches.forEach((m) => set.add(m))
+  }
+  return set.size > 0 ? [...set] : ['holdings.csv', 'event_log.csv', 'rm_notes.json']
+}
+
+// Book-level composition for the Portfolios page. A SINGLE call to /api/book
+// returns the whole official 20-client book (per-client AUM in USD, current
+// allocation, YTD from first-vs-latest snapshot, mandate code(s)) plus the
+// pre-computed aggregate. This avoids fanning out into 40 per-client requests,
+// which was unreliable on serverless and could blank the page.
+//
+// IMPORTANT: this THROWS on API failure rather than returning an empty book,
+// so the page can show an explicit error state instead of a false "S$0".
+export const getOfficialBook = async () => {
+  const book = await fetchJson('/api/book') // throws on non-2xx (see fetchJson)
+  if (!book || !Array.isArray(book.clients)) {
+    throw new Error('Book endpoint returned an unexpected shape')
+  }
+  return {
+    clients: book.clients,
+    totalAumUsd: book.totalAumUsd,
+    aggregateAllocation: book.aggregateAllocation || [],
+    clientCount: book.clientCount ?? book.clients.length,
+  }
+}
+
 // The dashboard priority ranking (raw engine output).
 export const getPriorityRanking = async () => {
   const { raw } = await loadPriorityIndex()
