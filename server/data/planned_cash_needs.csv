@@ -1,14 +1,21 @@
-need_id,client_id,description,amount_local,currency,amount_chf,due_date,urgency,status,linked_portfolio_id,notes
-PCN-0014-001,CL-0014,Property settlement — Phase 3 residential development Kowloon,60000000,HKD,7200000,2026-11-30,High,Confirmed,PF-0014A,Client confirmed payment due Nov 30 2026. Linked to Kowloon residential project completion. Source: RM note 2026-07-15.
-PCN-0014-002,CL-0014,Annual family trust distribution,8000000,HKD,960000,2026-12-31,Medium,Confirmed,PF-0014A,Annual trust distribution to family members. Recurring.
-PCN-0014-003,CL-0014,Structured product autocallable maturity reinvestment,4000000,HKD,480000,2026-12-31,Low,Anticipated,PF-0014B,INS-0015 autocallable matures Dec 31 2026 — proceeds to be reinvested.
-PCN-0019-001,CL-0019,Family office operational expenses Q4 2026,2000000,USD,1860000,2026-12-31,Low,Routine,PF-0019B,Quarterly family office running costs.
-PCN-0019-002,CL-0019,Potential shipping asset acquisition — Dubai,50000000,USD,46500000,2027-06-30,Medium,Indicative,PF-0019A,Client indicated potential acquisition of additional shipping vessel — subject to board approval. Source: RM note 2026-08-12.
-PCN-0003-001,CL-0003,Inheritance tax instalment — Germany estate settlement,4200000,EUR,4620000,2026-12-31,High,Confirmed,PF-0003A,German inheritance tax instalment due Dec 2026. Confirmed with client and legal advisors. Source: RM note 2026-03-10.
-PCN-0003-002,CL-0003,Inheritance tax instalment — Germany estate settlement (final),3800000,EUR,4180000,2027-06-30,High,Confirmed,PF-0003A,Final inheritance tax instalment due Jun 2027.
-PCN-0003-003,CL-0003,Annual living expenses / distributions,1200000,EUR,1320000,2026-12-31,Medium,Routine,PF-0003B,Annual living expense distribution to client.
-PCN-0005-001,CL-0005,Venture co-investment capital call,5000000,USD,4650000,2026-10-31,High,Anticipated,PF-0005,Capital call expected from Gulf Energy Infrastructure Fund.
-PCN-0010-001,CL-0010,Venture fund commitment capital call,3000000,USD,2790000,2026-11-30,Medium,Anticipated,PF-0010,Capital call from Pavilion PE Fund IV.
-PCN-0001-001,CL-0001,Property acquisition deposit,5000000,CHF,5000000,2026-12-31,Medium,Anticipated,PF-0001,Client discussing Swiss property acquisition.
-PCN-0013-001,CL-0013,Business expansion capital reserve,8000000,SGD,5920000,2027-03-31,Low,Indicative,PF-0013,Client may need capital for Singapore business expansion — still at exploration stage.
-PCN-0006-001,CL-0006,Real estate development payment,4000000,USD,3720000,2026-10-31,Medium,Confirmed,PF-0006,Stage payment on Lagos development project.
+need_id,client_id,description,currency,amount,due_from,due_to,recurrence,certainty
+CN-001,CL-0001,Deposit on Singapore residential property purchase,SGD,9000000,2027-03-01,2027-06-30,One-off,Likely
+CN-002,CL-0002,Estimated Singapore tax on secondary share sale,USD,4200000,2027-01-01,2027-04-30,One-off,Conditional on the sale completing
+CN-003,CL-0002,Family trust establishment and funding,USD,2000000,2026-11-01,2027-03-31,One-off,Likely
+CN-004,CL-0003,German inheritance tax instalment,EUR,3400000,2026-10-01,2026-12-31,One-off,Confirmed
+CN-005,CL-0004,Annual retirement drawdown from Q2 2027,USD,1450000,2027-04-01,2045-04-01,Annual,Confirmed
+CN-006,CL-0005,"Children's university fees, Australia",SGD,180000,2026-09-01,2031-09-01,Annual,Confirmed
+CN-007,CL-0006,"US university fees, two children",USD,5000000,2026-09-01,2030-09-01,Annual instalments,Confirmed
+CN-008,CL-0006,Private equity capital calls,USD,3000000,2026-10-01,2028-03-31,Irregular,Likely
+CN-009,CL-0007,Initial endowment of charitable foundation,USD,12000000,2027-01-01,2027-12-31,One-off,Likely
+CN-010,CL-0008,"University fees, two children",SGD,420000,2027-01-01,2033-01-01,Annual,Confirmed
+CN-011,CL-0011,Estate duty and legal costs on succession planning,SGD,2800000,2026-12-01,2027-12-31,One-off,Likely
+CN-012,CL-0012,Living expenses and medical care,USD,1280000,2026-01-01,2038-01-01,Annual,Confirmed
+CN-013,CL-0014,Mid-Levels redevelopment equity contribution,HKD,60000000,2026-11-01,2027-06-30,One-off,Confirmed
+CN-014,CL-0016,Support for elderly parents in Japan,JPY,18000000,2026-01-01,2034-01-01,Annual,Confirmed
+CN-015,CL-0017,G3 education programme,USD,900000,2026-09-01,2034-09-01,Annual,Confirmed
+CN-016,CL-0017,Outstanding private markets commitments,USD,15800000,2026-10-01,2028-06-30,Irregular,Confirmed
+CN-017,CL-0019,Seed capital for Singapore family office entity,USD,5000000,2027-01-01,2027-12-31,One-off,Likely
+CN-018,CL-0020,Hong Kong property purchase,USD,3600000,2027-04-01,2027-12-31,One-off,Likely
+CN-019,CL-0020,Healthcare foundation seed funding,USD,2500000,2028-01-01,2028-12-31,One-off,Aspirational
+CN-020,CL-0018,Italian succession planning and notarial costs,EUR,850000,2027-06-01,2028-06-30,One-off,Likely

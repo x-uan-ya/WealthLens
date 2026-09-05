@@ -1,177 +1,254 @@
-{
-  "rm_id": "RM-001",
-  "rm_name": "Priscilla Ong",
-  "rm_title": "Senior Relationship Manager",
-  "rm_team": "UHNW — Asia Pacific Desk",
-  "rm_location": "Hong Kong",
-  "notes": [
-    {
-      "note_id": "RMN-0014-001",
-      "client_id": "CL-0014",
-      "note_date": "2026-07-15",
-      "note_type": "Liquidity Planning",
-      "subject": "Kowloon Development — Phase 3 Settlement Confirmed",
-      "body": "Met with Mr Lau at our Hong Kong office. He confirmed that the Phase 3 residential development settlement in Kowloon requires HKD 60 million by end of November 2026. This is a hard deadline — the developer has already issued the payment notice. Mr Lau asked us to review the portfolio liquidity position and consider options. He does not want to sell the core SHK Properties position if avoidable as he believes in the long-term recovery. Discussed using the existing Lombard facility to partially fund the requirement. He was receptive. I will prepare a liquidity waterfall analysis.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-08-15",
-      "tags": ["liquidity", "cash-need", "property-development", "lombard"]
-    },
-    {
-      "note_id": "RMN-0014-002",
-      "client_id": "CL-0014",
-      "note_date": "2026-08-20",
-      "note_type": "Portfolio Review",
-      "subject": "Portfolio Review — Concentration Discussion",
-      "body": "Mr Lau reviewed the portfolio. He noted the property concentration is intentional — he believes HK property is undervalued relative to long-term fundamentals. He is aware of the concentration risk. We discussed the structured product book (PF-0014B) — he noted the autocallable note (JB HK RE Basket) matures December 2026 and he expects it to autocall. He asked for an analysis of what happens if it does not autocall. I explained the mark-down and repayment at maturity. He understood. Re the Lombard: he is comfortable with current drawn level (~HKD 142m) but wants to know his headroom. I told him current LTV is ~49% against a 60% threshold. He was satisfied but I noted internally that the structured products facility (CF-0014-003) is much tighter — only 3.3% from threshold. Need to flag this.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-09-05",
-      "tags": ["concentration", "structured-products", "ltv", "credit-facility", "autocallable"]
-    },
-    {
-      "note_id": "RMN-0014-003",
-      "client_id": "CL-0014",
-      "note_date": "2026-06-10",
-      "note_type": "Market Event",
-      "subject": "China Housing Stimulus — Mr Lau Reaction",
-      "body": "Spoke with Mr Lau following the China housing stimulus announcement (June 18 2026). He was cautiously positive — noted that GBA policy relaxation for HK buyers in Shenzhen is interesting but his main focus remains HK Central/Kowloon Grade A. He does not plan to buy additional property at this stage given the upcoming November cash need.",
-      "action_required": "N",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": null,
-      "tags": ["china-stimulus", "property", "market-event"]
-    },
-    {
-      "note_id": "RMN-0014-004",
-      "client_id": "CL-0014",
-      "note_date": "2025-11-20",
-      "note_type": "Annual Review",
-      "subject": "Annual Review — Investment Objectives Confirmed",
-      "body": "Annual review conducted. Mr Lau confirmed investment objectives: capital preservation, maintain HK property exposure, generate income from bond holdings, and maintain flexibility for property development activities. He is not interested in broad diversification away from HK real estate at this time. Risk profile confirmed as Balanced. Mandate confirmed as Advisory. He expressed satisfaction with the RM relationship.",
-      "action_required": "N",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": null,
-      "tags": ["annual-review", "objectives", "risk-profile"]
-    },
-    {
-      "note_id": "RMN-0019-001",
-      "client_id": "CL-0019",
-      "note_date": "2026-08-12",
-      "note_type": "Portfolio Review",
-      "subject": "Diversification Portfolio Review — Hormuz Event Context",
-      "body": "Met with Mr Al-Mansoori and his family office CFO at our Dubai office. Discussion focused on the diversification portfolio (PF-0019B) performance and the impact of the Hormuz disruption on the core portfolio (PF-0019A). He acknowledged that the family's shipping and energy conglomerate was directly affected by the Hormuz event — vessel rerouting added significant cost in February-March. He wants the investment portfolio to provide a buffer against the operational business. He asked whether our current diversification strategy is sufficient. I noted the JB Shipping/Energy Note (INS-0024) is directly correlated with his operational exposure — this creates concentration, not diversification. He was surprised and asked for a detailed analysis. Also discussed the potential vessel acquisition — he said it is under board review and may require up to USD 50m capital, potentially by H1 2027.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-09-12",
-      "tags": ["diversification", "shipping-exposure", "energy-exposure", "hormuz", "structured-note", "concentration"]
-    },
-    {
-      "note_id": "RMN-0019-002",
-      "client_id": "CL-0019",
-      "note_date": "2026-05-18",
-      "note_type": "Objective Setting",
-      "subject": "Diversification Objective — Formal Statement",
-      "body": "Mr Al-Mansoori formally stated during the May 2026 review that the primary investment objective for the Julius Baer relationship is to provide DIVERSIFICATION from the family's core shipping and energy business concentration. He explicitly said: 'What we do in business, we should not also hold in this portfolio.' This statement should be recorded as a formal client objective. The family's wealth is approximately 65-70% concentrated in shipping/energy through the operating conglomerate (Al-Mansoori Group). He wants JB assets to move in a different direction.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-08-01",
-      "tags": ["diversification-objective", "client-stated-objective", "shipping", "energy", "concentration"]
-    },
-    {
-      "note_id": "RMN-0019-003",
-      "client_id": "CL-0019",
-      "note_date": "2026-02-19",
-      "note_type": "Market Event Response",
-      "subject": "Hormuz Disruption — Client Contact and Portfolio Response",
-      "body": "Contacted Mr Al-Mansoori during the Hormuz disruption (February 14-20 2026). He was in Dubai managing the operational business impact. He asked us to raise cash in the portfolio to demonstrate liquidity — we raised USD 4.1m in PF-0019A (confirmed transaction TXN-0005). The JB Shipping/Energy Structured Note declined to approximately 88 cents on the dollar. He noted this was problematic — 'I am losing money in my business AND in my portfolio from the same event.' This reinforced the diversification objective.",
-      "action_required": "N",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": null,
-      "tags": ["hormuz", "market-event", "cash-raise", "structured-note", "correlation-risk"]
-    },
-    {
-      "note_id": "RMN-0003-001",
-      "client_id": "CL-0003",
-      "note_date": "2026-03-10",
-      "note_type": "Life Event",
-      "subject": "Inheritance Tax Settlement — Payment Schedule Confirmed",
-      "body": "Met with Frau Voss-Brenner in Munich. She confirmed the German inheritance tax settlement timeline with her German lawyer (Dr. Bauer). Two remaining instalments: EUR 4.2m due December 2026 and EUR 3.8m due June 2027. Total outstanding EUR 8m. She asked whether the portfolio can cover these without disruption to income. I noted that the EUR cash position (PF-0003A: EUR 4m + PF-0003B: EUR 2.5m) covers the first instalment but we need to think about the second. She does not want to sell bonds early. We should also note that the Conservative mandate means very limited equity exposure — she asked whether her 'Deutsche Bank shares are appropriate'. I noted that Deutsche Bank is a single stock representing ~15% of PF-0003A which seems elevated relative to the Conservative mandate guidelines. She said she inherited it and has sentimental attachment but acknowledged the concentration concern.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-06-01",
-      "tags": ["inheritance-tax", "cash-need", "mandate-compliance", "single-stock", "conservative-profile"]
-    },
-    {
-      "note_id": "RMN-0003-002",
-      "client_id": "CL-0003",
-      "note_date": "2026-07-28",
-      "note_type": "Portfolio Review",
-      "subject": "Portfolio Review — Mandate Alignment Check",
-      "body": "Quarterly portfolio review with Frau Voss-Brenner. Key issue: the JB Conservative Multi-Asset Fund (INS-0036) has increased its internal equity allocation following ECB rate cuts — the fund's factsheet now shows equity at 28%, above the fund's typical 20% target. Combined with the Deutsche Bank single stock holding (~15% of PF-0003A), total equity exposure in PF-0003A is approaching 36%. This exceeds the Conservative mandate equity ceiling of 30%. I flagged this to the client. She was concerned. I also noted that combined across PF-0003A and PF-0003B, total equity is approximately 28% — still above the Conservative mandate maximum of 30% on a combined basis if the MA fund equity proportion remains elevated. Recommend: (1) review MA fund equity allocation, (2) address Deutsche Bank concentration. Client asked for written analysis.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-08-20",
-      "tags": ["mandate-breach", "equity-ceiling", "conservative-mandate", "single-stock", "ma-fund-drift"]
-    },
-    {
-      "note_id": "RMN-0003-003",
-      "client_id": "CL-0003",
-      "note_date": "2026-01-15",
-      "note_type": "Objective Setting",
-      "subject": "Annual Review — Client Objectives and Life Situation",
-      "body": "Annual review. Frau Voss-Brenner is 67 years old, widowed, living in Munich. Her two adult children (Michael and Anna) are named beneficiaries in her estate plan. She has no desire for capital growth — preservation of inheritance value and reliable income for living expenses are her sole objectives. She confirmed she does not wish to take on any additional risk. The German estate settlement has been emotionally stressful and she relies on the JB relationship for stability. She mentioned that both children have asked about their inheritance allocation — we should note succession planning as a medium-term topic.",
-      "action_required": "N",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": null,
-      "tags": ["annual-review", "conservative-objectives", "succession", "life-event", "preservation"]
-    },
-    {
-      "note_id": "RMN-0001-001",
-      "client_id": "CL-0001",
-      "note_date": "2026-08-15",
-      "note_type": "Portfolio Review",
-      "subject": "Q3 Review — Swiss Property Interest",
-      "body": "Mr Whitfield considering Swiss property acquisition in Q4 2026 — approx CHF 5m deposit required. Portfolio has sufficient liquidity (CHF 10m MM fund) but want to pre-plan.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-09-30",
-      "tags": ["liquidity", "property", "cash-need"]
-    },
-    {
-      "note_id": "RMN-0005-001",
-      "client_id": "CL-0005",
-      "note_date": "2026-08-28",
-      "note_type": "Portfolio Review",
-      "subject": "Energy Concentration + Capital Call",
-      "body": "Sorokina portfolio has significant Nvidia/Microsoft tech concentration alongside Gulf Energy Infrastructure exposure. Gulf Energy Fund capital call expected October 2026 (USD 5m). Client aware. Discussed Hormuz impact on Gulf Energy Fund marks. She was surprised by the indirect exposure. Portfolio has sufficient cash (CHF 15m) to cover the call.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-10-01",
-      "tags": ["capital-call", "energy-exposure", "hormuz", "liquidity"]
-    },
-    {
-      "note_id": "RMN-0010-001",
-      "client_id": "CL-0010",
-      "note_date": "2026-08-29",
-      "note_type": "Portfolio Review",
-      "subject": "Nvidia Concentration — Semiconductor Controls Risk",
-      "body": "Mr Cohen holds 74% in Nvidia (PF-0010). Discussed the August 20 2026 US semiconductor export control announcement. Nvidia fell 4% on the announcement. Cohen is aware — he says he has conviction but acknowledges the concentration. The margin facility (CF-0010-001) has USD 35m drawn. With Nvidia at current prices, LTV is comfortable at 25.4% vs 50% threshold. However a 50% fall in Nvidia from current levels would bring LTV to ~50% threshold — this is the margin call scenario.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-09-05",
-      "tags": ["concentration", "nvidia", "margin-facility", "semiconductor-controls", "ltv"]
-    },
-    {
-      "note_id": "RMN-0016-001",
-      "client_id": "CL-0016",
-      "note_date": "2026-08-27",
-      "note_type": "Market Event",
-      "subject": "Korea Semiconductor Export Controls — Portfolio Impact",
-      "body": "Called Mr Han immediately following the August 20 US semiconductor export control announcement. Samsung declined 8%, KOSPI semiconductor ETF -9%. His portfolio is ~50% in Korean semiconductor names. He was concerned but said he takes a long-term view. I noted the export controls specifically affect manufacturing equipment exports to China — Samsung's memory division has significant China revenues.",
-      "action_required": "Y",
-      "action_owner": "Priscilla Ong",
-      "follow_up_date": "2026-09-10",
-      "tags": ["semiconductor-controls", "samsung", "korea-exposure", "concentration"]
-    }
-  ]
-}
+[
+  {
+    "note_id": "N-001",
+    "client_id": "CL-0001",
+    "note_date": "2026-01-08",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Annual review in Singapore. Client is more engaged than in prior years. Father has begun handing over the family group's treasury function to him. He was clear that the Julius Baer relationship is meant to be the part of the family's wealth that is not tied to the mine. Did not want to discuss reducing the legacy shareholding, said it would be read as a signal by his uncles. Interested in yield ideas."
+  },
+  {
+    "note_id": "N-002",
+    "client_id": "CL-0001",
+    "note_date": "2026-04-14",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Client called about the energy rally. Very positive on the outlook for coal and gas pricing. Asked what products give him more of that. Discussed the shipping and energy FCN, he subscribed the following day. He is also looking at a Bukit Timah property, expects to need around SGD 9m for the deposit in early 2027."
+  },
+  {
+    "note_id": "N-003",
+    "client_id": "CL-0002",
+    "note_date": "2026-02-03",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Secondary sale process is progressing, bankers indicate Q4 2026 at a valuation meaningfully above the last round. Client wants to avoid selling any listed positions before then because he views the tech complex as the best place to be. Comfortable increasing the Lombard line if needed."
+  },
+  {
+    "note_id": "N-004",
+    "client_id": "CL-0002",
+    "note_date": "2026-06-11",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Difficult call. Client was agitated about the drop in his technology holdings last week and the effect on his collateral value. Drew a further USD 1.7m to fund a pre-IPO secondary. I flagged that this increases his utilisation at exactly the moment his collateral is most volatile. He acknowledged the point but proceeded. Needs monitoring."
+  },
+  {
+    "note_id": "N-005",
+    "client_id": "CL-0003",
+    "note_date": "2026-02-16",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "First meeting following the transfer in. Mrs Voss-Brenner is still grieving and asked that we not make any changes for now. She said several times that she does not understand what is in the portfolio and that her husband handled all of it. She described herself as someone who has never taken a risk with money. Risk profiling completed as Conservative. The portfolio as transferred is not conservative."
+  },
+  {
+    "note_id": "N-006",
+    "client_id": "CL-0003",
+    "note_date": "2026-05-29",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Email",
+    "note": "Client asked whether she should be worried about the news from the Middle East. Sent a short note. She replied asking whether her portfolio would be affected and said she would prefer 'something safe and boring'. German inheritance tax instalment of around EUR 3.4m falls due before year end."
+  },
+  {
+    "note_id": "N-007",
+    "client_id": "CL-0004",
+    "note_date": "2026-03-24",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Client is firm on retiring in Q2 2027 and handing the business to his eldest daughter. He wants to know whether the portfolio can produce USD 1.45m a year without touching capital. Concerned about the drop in his bond valuations. I explained the relationship between yields and prices but he keeps returning to the fact that the numbers are red."
+  },
+  {
+    "note_id": "N-008",
+    "client_id": "CL-0005",
+    "note_date": "2026-02-11",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Reviewed the sustainability policy the family adopted in 2024. Client believes the portfolio is fully aligned. She was not aware of the energy fund holding. The Sunrise Palm position is a family holding from before the policy and she considers it separate, though it sits in the same mandate."
+  },
+  {
+    "note_id": "N-009",
+    "client_id": "CL-0006",
+    "note_date": "2026-05-12",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Client needs USD liquidity for capital calls and the first US tuition instalment. Submitted a redemption on the private credit fund. Warned her about the gate. She was surprised that a fund she thought of as conservative could restrict withdrawals. Most of her assets are Singapore dollar denominated and her obligations are in US dollars, which has become more expensive this year."
+  },
+  {
+    "note_id": "N-010",
+    "client_id": "CL-0007",
+    "note_date": "2026-01-22",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Client instructed an additional gold purchase. His view is that the monetary system is being repriced and that gold has further to run. I noted that the position was already above the mandate's commodity ceiling before the purchase. He acknowledged this and confirmed the instruction in writing. Suitability waiver on file."
+  },
+  {
+    "note_id": "N-011",
+    "client_id": "CL-0007",
+    "note_date": "2026-07-30",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Foundation launch planned for 2027 with an initial endowment of around USD 12m. He wants to fund it from appreciated assets rather than cash. Long-held UK tax questions remain unresolved; recommend involving the wealth planning team before any disposal."
+  },
+  {
+    "note_id": "N-012",
+    "client_id": "CL-0008",
+    "note_date": "2026-06-18",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Eldest starts at a UK university in September 2027, second child two years later. Combined fees and living costs estimated at SGD 420k a year for six years. Client wants certainty on this and is willing to accept lower returns on the portion that funds it. Also mentioned she is in early discussions about selling a minority stake in the franchise business in 2028."
+  },
+  {
+    "note_id": "N-013",
+    "client_id": "CL-0009",
+    "note_date": "2026-03-02",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Second attempt at a deployment plan. Client agreed the allocation in principle in October 2024 and again in June 2025 but has not executed. He says he is waiting for a better entry point. I showed him what the cash has cost him against the agreed benchmark since the sale. He was quiet, then said he would think about it. Also unwilling to sell the residual Nordvind stake for sentimental reasons."
+  },
+  {
+    "note_id": "N-014",
+    "client_id": "CL-0010",
+    "note_date": "2026-04-08",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Client is thoughtful and well prepared. She reviews the sustainability screening herself and challenged two holdings, both of which passed. Wants to start a first property purchase fund for 2028. No concerns."
+  },
+  {
+    "note_id": "N-015",
+    "client_id": "CL-0011",
+    "note_date": "2026-05-20",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Succession discussion, fourth attempt. Four children, two involved in the business and two not. No trust or holding structure in place. Client is 78 and in declining health. The bulk of the estate is illiquid Singapore property. If anything happens before a structure exists the family will have to sell assets into whatever market exists at the time. He asked for more time to think."
+  },
+  {
+    "note_id": "N-016",
+    "client_id": "CL-0012",
+    "note_date": "2026-07-16",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Client increased his quarterly drawdown to cover medical costs. He asked why his income portfolio has lost money in a year when he was told bonds were the safe part. Explained duration. He said he does not want to sell anything at a loss and would rather wait for the bonds to come back. Note that he is 71 and the longest bond does not mature until 2045."
+  },
+  {
+    "note_id": "N-017",
+    "client_id": "CL-0013",
+    "note_date": "2026-06-12",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Client sees the technology drawdown as a buying opportunity and wants more, not less. She was dismissive of the suggestion that her exposure to a single name is high once the note is counted. Her view is that she understands the sector better than the bank does, which is not an unreasonable position given her background. Credit line unchanged at USD 4.2m drawn."
+  },
+  {
+    "note_id": "N-018",
+    "client_id": "CL-0014",
+    "note_date": "2026-03-05",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Accumulator settlements are running against the client. Drew a further HKD 4m on the facility to meet obligations. Client remains convinced the Hong Kong property market turns this year. I pointed out that the perpetual, the shares, the accumulator and his own development business are all the same bet. He said that is why he is confident."
+  },
+  {
+    "note_id": "N-019",
+    "client_id": "CL-0014",
+    "note_date": "2026-08-11",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Redevelopment project needs an HKD 60m equity contribution by mid-2027. Client expects to fund it partly from the portfolio. Reviewed what is actually sellable. He was surprised how little of it is liquid."
+  },
+  {
+    "note_id": "N-020",
+    "client_id": "CL-0015",
+    "note_date": "2026-03-18",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Client asked for the most aggressive way to express a view that the Middle East situation gets worse before it gets better. Subscribed the energy and technology FCN same day. He understands the payoff structure well and asked good questions about the worst-of feature."
+  },
+  {
+    "note_id": "N-021",
+    "client_id": "CL-0016",
+    "note_date": "2026-05-07",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Retirement to Japan planned for 2030. Client will need yen income at that point and is aware that most of his portfolio is not in yen. He has held the employer shares since 2013 and has an emotional attachment to them. Board position means dealing restrictions apply during closed periods; next open window is November 2026. Supports his parents at around JPY 18m a year."
+  },
+  {
+    "note_id": "N-022",
+    "client_id": "CL-0017",
+    "note_date": "2026-02-10",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Email",
+    "note": "Capital call of USD 3.2m met from the sleeve's cash. Flagged to the family office CFO that between the remaining commitments and the gated private credit position, the sleeve's liquidity is thin. He asked for a full liquidity map before the next investment committee in October."
+  },
+  {
+    "note_id": "N-023",
+    "client_id": "CL-0017",
+    "note_date": "2026-06-30",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Investment committee review. G2 wants to keep the core mandate conservative. G3 representatives pushed for more technology and venture exposure in the next generation account. Unresolved. Private credit manager has now gated three consecutive quarters."
+  },
+  {
+    "note_id": "N-024",
+    "client_id": "CL-0018",
+    "note_date": "2026-04-22",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Client is pleased with the gold position, which she describes as the only thing that has worked. She originally sized it as a 5% hedge. It is now materially larger and she has not sold any. Separately her distribution business is under pressure from weaker Greater China luxury demand, which is the same theme as her largest equity holding."
+  },
+  {
+    "note_id": "N-025",
+    "client_id": "CL-0019",
+    "note_date": "2026-04-15",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Call",
+    "note": "Client subscribed the shipping and energy FCN. His view is that charter rates stay elevated while the Strait situation is unresolved. Noted that his operating business benefits from the same conditions. He said the point of the Asia portfolio was to be uncorrelated with the Gulf business. It currently is not."
+  },
+  {
+    "note_id": "N-026",
+    "client_id": "CL-0019",
+    "note_date": "2026-08-12",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Client is planning a Singapore family office entity for 2027, around USD 5m of seed capital. He asked for a view on what happens to his portfolio if the Strait reopens and normalises. We have not modelled this."
+  },
+  {
+    "note_id": "N-027",
+    "client_id": "CL-0020",
+    "note_date": "2026-02-27",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Meeting",
+    "note": "Clinics group is expanding into Malaysia. Client wants portfolio growth but is aware her wealth and her largest holdings are in the same sector. Hong Kong property purchase planned for 2027, around USD 3.6m. Foundation ambitions for 2028 are aspirational at this stage."
+  },
+  {
+    "note_id": "N-028",
+    "client_id": "CL-0004",
+    "note_date": "2026-08-19",
+    "rm_id": "RM-SG-014",
+    "rm_name": "Priscilla Ong",
+    "channel": "Email",
+    "note": "Client forwarded an article about interest rates and asked whether he should move everything to deposits. Have not yet replied. Needs a proper conversation, not an email."
+  }
+]

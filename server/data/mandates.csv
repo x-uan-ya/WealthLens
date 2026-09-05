@@ -1,21 +1,49 @@
-mandate_id,client_id,mandate_type,mandate_name,equity_min_pct,equity_max_pct,fixed_income_min_pct,fixed_income_max_pct,cash_min_pct,cash_max_pct,alternatives_min_pct,alternatives_max_pct,max_single_issuer_pct,max_single_sector_pct,currency_base,leverage_permitted,derivatives_permitted,esg_screen,benchmark,effective_date,review_date,notes
-MND-0001,CL-0001,Advisory,Balanced Advisory,30,60,20,50,5,20,0,25,10,25,CHF,N,Y,N,Blended 60/40,2015-03-01,2027-03-01,
-MND-0002,CL-0002,Advisory,Growth Advisory,40,70,10,40,5,20,0,30,10,30,JPY,N,Y,N,MSCI World,2012-06-01,2027-06-01,
-MND-0003,CL-0003,Discretionary,Conservative Discretionary,10,30,50,75,5,20,0,15,10,20,EUR,N,N,N,EUR Agg Bond,2009-09-01,2027-09-01,Inheritance profile — capital preservation priority
-MND-0004,CL-0004,Advisory,Balanced Advisory,30,60,20,50,5,20,0,25,10,25,USD,N,Y,N,Blended 60/40,2018-04-01,2027-04-01,
-MND-0005,CL-0005,Advisory,Growth Advisory,40,70,5,30,5,20,5,35,10,30,CHF,Y,Y,N,MSCI World,2010-11-01,2027-11-01,
-MND-0006,CL-0006,Discretionary,Balanced Discretionary,30,60,20,50,5,20,0,25,10,25,USD,N,Y,N,Blended 60/40,2013-07-01,2027-07-01,
-MND-0007,CL-0007,Discretionary,Conservative Discretionary,5,25,55,80,5,20,0,10,10,20,SGD,N,N,N,SGD Bond Index,2016-02-01,2027-02-01,
-MND-0008,CL-0008,Advisory,Growth Advisory,40,70,10,35,5,20,0,30,10,30,USD,N,Y,N,MSCI World,2017-08-01,2027-08-01,
-MND-0009,CL-0009,Advisory,Balanced ESG Advisory,30,60,20,50,5,20,0,20,10,25,NOK,N,Y,Y,MSCI World ESG,2020-03-01,2027-03-01,
-MND-0010,CL-0010,Advisory,Aggressive Advisory,50,80,0,25,5,15,5,40,10,35,USD,Y,Y,N,MSCI World,2008-05-01,2027-05-01,
-MND-0011,CL-0011,Discretionary,Conservative Discretionary,5,25,55,80,5,20,0,15,10,20,USD,N,N,N,Global Agg Bond,2007-10-01,2027-10-01,
-MND-0012,CL-0012,Advisory,Balanced Advisory,30,60,20,50,5,20,0,25,10,25,EUR,N,Y,N,Blended 60/40,2019-06-01,2027-06-01,
-MND-0013,CL-0013,Advisory,Growth Advisory,40,70,10,35,5,20,5,30,10,30,SGD,N,Y,Y,MSCI Asia,2021-09-01,2027-09-01,
-MND-0014,CL-0014,Advisory,Balanced Advisory,30,60,20,50,5,20,0,25,10,25,HKD,N,Y,N,Blended 60/40,2011-04-01,2027-04-01,Key client — property concentration monitor
-MND-0015,CL-0015,Discretionary,Conservative Discretionary,5,25,55,80,5,20,0,10,10,20,EUR,N,N,N,EUR Agg Bond,2014-08-01,2027-08-01,
-MND-0016,CL-0016,Advisory,Growth Advisory,40,75,5,30,5,20,5,35,10,35,KRW,Y,Y,N,KOSPI,2016-09-01,2027-09-01,
-MND-0017,CL-0017,Advisory,Balanced Advisory,30,60,20,50,5,20,0,25,10,25,EUR,N,Y,N,Blended 60/40,2022-03-01,2027-03-01,
-MND-0018,CL-0018,Discretionary,Conservative Discretionary,5,25,55,80,5,20,0,10,10,20,EUR,N,N,N,EUR Agg Bond,2020-07-01,2027-07-01,
-MND-0019,CL-0019,Advisory,Balanced Advisory,30,60,20,50,5,20,0,25,10,25,USD,N,Y,N,Blended 60/40,2006-12-01,2027-12-01,Diversification objective — reduce shipping/energy concentration
-MND-0020,CL-0020,Advisory,Sustainable Growth Advisory,35,65,15,45,5,20,5,25,10,25,CAD,N,Y,Y,MSCI World ESG,2023-05-01,2027-05-01,
+mandate_code,mandate_name,asset_class,min_pct,target_pct,max_pct,max_single_position_pct,mandate_notes
+CONS,Conservative,Cash and Equivalents,5,10,25,10.0,Capital preservation. Max 10% in any single position.
+CONS,Conservative,Fixed Income,45,60,75,10.0,Capital preservation. Max 10% in any single position.
+CONS,Conservative,Equity,10,20,30,10.0,Capital preservation. Max 10% in any single position.
+CONS,Conservative,Alternatives,0,5,15,10.0,Capital preservation. Max 10% in any single position.
+CONS,Conservative,Commodities,0,5,10,10.0,Capital preservation. Max 10% in any single position.
+CONS,Conservative,Structured Products,0,0,10,10.0,Capital preservation. Max 10% in any single position.
+INC,Income,Cash and Equivalents,3,8,20,10.0,Yield generation with moderate capital risk.
+INC,Income,Fixed Income,40,55,70,10.0,Yield generation with moderate capital risk.
+INC,Income,Equity,15,25,35,10.0,Yield generation with moderate capital risk.
+INC,Income,Alternatives,0,7,15,10.0,Yield generation with moderate capital risk.
+INC,Income,Commodities,0,2,8,10.0,Yield generation with moderate capital risk.
+INC,Income,Structured Products,0,3,12,10.0,Yield generation with moderate capital risk.
+BAL,Balanced,Cash and Equivalents,2,7,18,12.0,Balanced growth and income.
+BAL,Balanced,Fixed Income,25,35,50,12.0,Balanced growth and income.
+BAL,Balanced,Equity,30,40,55,12.0,Balanced growth and income.
+BAL,Balanced,Alternatives,0,10,20,12.0,Balanced growth and income.
+BAL,Balanced,Commodities,0,3,10,12.0,Balanced growth and income.
+BAL,Balanced,Structured Products,0,5,15,12.0,Balanced growth and income.
+BALG,Balanced Growth,Cash and Equivalents,2,5,15,15.0,Growth tilt with a fixed income anchor.
+BALG,Balanced Growth,Fixed Income,15,25,40,15.0,Growth tilt with a fixed income anchor.
+BALG,Balanced Growth,Equity,40,50,65,15.0,Growth tilt with a fixed income anchor.
+BALG,Balanced Growth,Alternatives,0,13,25,15.0,Growth tilt with a fixed income anchor.
+BALG,Balanced Growth,Commodities,0,3,10,15.0,Growth tilt with a fixed income anchor.
+BALG,Balanced Growth,Structured Products,0,4,15,15.0,Growth tilt with a fixed income anchor.
+GROW,Growth,Cash and Equivalents,1,4,12,15.0,Long-horizon capital appreciation.
+GROW,Growth,Fixed Income,5,12,25,15.0,Long-horizon capital appreciation.
+GROW,Growth,Equity,50,62,78,15.0,Long-horizon capital appreciation.
+GROW,Growth,Alternatives,0,17,30,15.0,Long-horizon capital appreciation.
+GROW,Growth,Commodities,0,2,8,15.0,Long-horizon capital appreciation.
+GROW,Growth,Structured Products,0,3,15,15.0,Long-horizon capital appreciation.
+DYN,Dynamic Opportunistic,Cash and Equivalents,0,3,15,20.0,"High risk tolerance, wide tactical latitude."
+DYN,Dynamic Opportunistic,Fixed Income,0,5,20,20.0,"High risk tolerance, wide tactical latitude."
+DYN,Dynamic Opportunistic,Equity,45,60,85,20.0,"High risk tolerance, wide tactical latitude."
+DYN,Dynamic Opportunistic,Alternatives,0,25,45,20.0,"High risk tolerance, wide tactical latitude."
+DYN,Dynamic Opportunistic,Commodities,0,2,10,20.0,"High risk tolerance, wide tactical latitude."
+DYN,Dynamic Opportunistic,Structured Products,0,5,20,20.0,"High risk tolerance, wide tactical latitude."
+ALTS,Alternatives Sleeve,Cash and Equivalents,0,3,15,25.0,Dedicated private markets and hedge fund sleeve. Measured separately from the household strategic allocation. Max 25% in any single fund.
+ALTS,Alternatives Sleeve,Fixed Income,0,5,25,25.0,Dedicated private markets and hedge fund sleeve. Measured separately from the household strategic allocation. Max 25% in any single fund.
+ALTS,Alternatives Sleeve,Equity,0,0,20,25.0,Dedicated private markets and hedge fund sleeve. Measured separately from the household strategic allocation. Max 25% in any single fund.
+ALTS,Alternatives Sleeve,Alternatives,60,85,100,25.0,Dedicated private markets and hedge fund sleeve. Measured separately from the household strategic allocation. Max 25% in any single fund.
+ALTS,Alternatives Sleeve,Commodities,0,0,10,25.0,Dedicated private markets and hedge fund sleeve. Measured separately from the household strategic allocation. Max 25% in any single fund.
+ALTS,Alternatives Sleeve,Structured Products,0,0,15,25.0,Dedicated private markets and hedge fund sleeve. Measured separately from the household strategic allocation. Max 25% in any single fund.
+SUSBAL,Sustainable Balanced,Cash and Equivalents,2,7,18,12.0,"Balanced allocation with binding exclusions: thermal coal, oil and gas exploration and production, controversial weapons, tobacco, and issuers with unresolved deforestation controversies."
+SUSBAL,Sustainable Balanced,Fixed Income,25,35,50,12.0,"Balanced allocation with binding exclusions: thermal coal, oil and gas exploration and production, controversial weapons, tobacco, and issuers with unresolved deforestation controversies."
+SUSBAL,Sustainable Balanced,Equity,30,40,55,12.0,"Balanced allocation with binding exclusions: thermal coal, oil and gas exploration and production, controversial weapons, tobacco, and issuers with unresolved deforestation controversies."
+SUSBAL,Sustainable Balanced,Alternatives,0,10,20,12.0,"Balanced allocation with binding exclusions: thermal coal, oil and gas exploration and production, controversial weapons, tobacco, and issuers with unresolved deforestation controversies."
+SUSBAL,Sustainable Balanced,Commodities,0,3,10,12.0,"Balanced allocation with binding exclusions: thermal coal, oil and gas exploration and production, controversial weapons, tobacco, and issuers with unresolved deforestation controversies."
+SUSBAL,Sustainable Balanced,Structured Products,0,5,15,12.0,"Balanced allocation with binding exclusions: thermal coal, oil and gas exploration and production, controversial weapons, tobacco, and issuers with unresolved deforestation controversies."

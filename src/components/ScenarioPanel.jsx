@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { FlaskConical, Layers, TrendingDown, Target, ListChecks, AlertCircle } from 'lucide-react'
-import { Card, Badge } from './ui.jsx'
+import { FlaskConical, Layers, TrendingDown, Target, ListChecks, AlertCircle, UserCheck } from 'lucide-react'
+import { Card } from './ui.jsx'
 import { EvidenceInspector, EvidenceButton } from './EvidenceInspector.jsx'
 
 // ScenarioPanel — reusable, prop-driven rendering of a structured scenario /
@@ -99,6 +99,19 @@ export default function ScenarioPanel({ scenario, client }) {
             <AlertCircle size={14} />
             <span><strong>Uncertainty:</strong> {scenario.uncertainty}</span>
           </div>
+        )}
+
+        {/* RM considerations — human-in-the-loop, never automated advice */}
+        {scenario.rmConsiderations?.length > 0 && (
+          <ScenarioBlock icon={<UserCheck size={14} />} title="RM considerations">
+            <ul className="scenario-list">
+              {scenario.rmConsiderations.map((t, i) => <li key={i}>{t}</li>)}
+            </ul>
+            <p className="muted" style={{ fontSize: 12, margin: '12px 0 0', lineHeight: 1.5 }}>
+              Scenario analysis supports RM judgement. The Relationship Manager remains
+              responsible for suitability assessment and any client recommendation.
+            </p>
+          </ScenarioBlock>
         )}
       </div>
 

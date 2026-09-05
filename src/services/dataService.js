@@ -15,16 +15,23 @@ import { marketSnapshot, marketNarratives } from '../data/market.js'
 import { notifications as seedNotifications } from '../data/notifications.js'
 import { preferenceSchema, defaultPreferences } from '../data/preferences.js'
 import {
-  adapterGetRm,
-  adapterGetClients,
-  adapterGetClientById,
-  adapterGetIntelligenceForClient,
-  adapterHasIntelligence,
-  adapterGetSnapshotDates,
-  adapterGetBrief,
-  adapterGetBriefStatus,
-  adapterSetBriefStatus,
-} from '../data/integrationAdapter.js'
+  normaliseRm,
+  normaliseClient,
+  indexPriority,
+  normaliseIntelligence,
+  normaliseScenario,
+  normaliseBrief,
+} from './apiNormalise.js'
+
+// Base path for the intelligence-engine API. Relative so the Vite dev proxy
+// (and any production reverse proxy) forwards /api/* to the Express server.
+const API_BASE = import.meta.env?.VITE_API_BASE || ''
+
+async function fetchJson(path) {
+  const res = await fetch(`${API_BASE}${path}`)
+  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`)
+  return res.json()
+}
 
 // Simulate latency so loading states are realistic. Set to 0 to disable.
 const LATENCY_MS = 0
@@ -118,35 +125,130 @@ export const getMarketSnapshot = () => resolve(clone(marketSnapshot))
 export const getMarketNarratives = () => resolve(clone(marketNarratives))
 
 // =============================================================================
-// OFFICIAL DATA (Julius Baer challenge) — served via the integration adapter.
-// These are the getters the RM experience consumes. When the intelligence
-// engine is ready, only integrationAdapter.js changes; these signatures stay.
+// OFFICIAL DATA (Julius Baer challenge) — served by the real intelligence
+// engine at /api/*. Responses are normalised to the shapes the existing
+// components consume (see apiNormalise.js). No placeholder figures.
 // =============================================================================
 
-// Official RM (Priscilla Ong) and the 20-client book.
-export const getOfficialRm = () => resolve(clone(adapterGetRm()))
+// Short-lived caches so we don't refetch the roster + priority ranking for
+// every client card on the dashboard. Cleared on full reload.
+let _priorityCache = null
+let _clientsRawCache = null
 
-export const getOfficialClients = () => resolve(clone(adapterGetClients()))
+async function loadPriorityIndex() {
+  if (!_priorityCache) {
+    const priority = await fetchJson('/api/intelligence/priority')
+    _priorityCache = { raw: priority, index: indexPriority(priority) }
+  }
+  return _priorityCache
+}
 
-export const getOfficialClientById = (id) =>
-  resolve(clone(adapterGetClientById(id)))
+// Official RM (Priscilla Ong).
+export const getOfficialRm = async () => {
+  const [rm, clients] = await Promise.all([
+    fetchJson('/api/rm'),
+    _clientsRawCache ? Promise.resolve(_clientsRawCache) : fetchJson('/api/clients'),
+  ])
+  _clientsRawCache = clients
+  return normaliseRm(rm, clients.length)
+}
 
-// Full contract-shaped intelligence object for a client (null if none yet).
-export const getClientIntelligence = (id) =>
-  resolve(clone(adapterGetIntelligenceForClient(id)))
+// The 20-client book, each carrying its current priority from the ranking.
+export const getOfficialClients = async () => {
+  const [clients, priority] = await Promise.all([
+    _clientsRawCache ? Promise.resolve(_clientsRawCache) : fetchJson('/api/clients'),
+    loadPriorityIndex(),
+  ])
+  _clientsRawCache = clients
+  return clients.map((c) => normaliseClient(c, priority.index))
+}
 
-export const hasClientIntelligence = (id) => resolve(adapterHasIntelligence(id))
+export const getOfficialClientById = async (id) => {
+  const [clients, priority] = await Promise.all([
+    _clientsRawCache ? Promise.resolve(_clientsRawCache) : fetchJson('/api/clients'),
+    loadPriorityIndex(),
+  ])
+  _clientsRawCache = clients
+  const raw = clients.find((c) => (c.clientId || c.id) === id)
+  return raw ? normaliseClient(raw, priority.index) : null
+}
 
-// The five official snapshot dates.
-export const getSnapshotDates = () => resolve(clone(adapterGetSnapshotDates()))
+// Full contract-shaped intelligence object for a client (null if none).
+// Combines /api/clients/:id/intelligence with /api/clients/:id/snapshots.
+export const getClientIntelligence = async (id) => {
+  let intel
+  try {
+    intel = await fetchJson(`/api/clients/${id}/intelligence`)
+  } catch {
+    return null
+  }
+  if (!intel) return null
+  let snapshots = null
+  try {
+    snapshots = await fetchJson(`/api/clients/${id}/snapshots`)
+  } catch {
+    snapshots = null
+  }
+  return normaliseIntelligence(intel, snapshots)
+}
+
+// Whether the client has deep intelligence signals.
+export const hasClientIntelligence = async (id) => {
+  const intel = await getClientIntelligence(id)
+  return Boolean(intel && intel.signals && intel.signals.length > 0)
+}
+
+// The five official snapshot dates (from the health endpoint).
+export const getSnapshotDates = async () => {
+  const health = await fetchJson('/api/health')
+  return health.snapshots || []
+}
+
+// The dashboard priority ranking (raw engine output).
+export const getPriorityRanking = async () => {
+  const { raw } = await loadPriorityIndex()
+  return raw
+}
 
 // --- RM brief + human-in-the-loop review status ---
 // The brief is a draft for human review; the app never executes from it.
-export const getClientBrief = (id) => resolve(clone(adapterGetBrief(id)))
+//
+// getClientBrief: cheap check used on page load. It does NOT call OpenAI.
+// It reports whether a grounded brief CAN be generated for this client
+// (i.e. the client has deep intelligence), returning a lightweight marker so
+// the "Generate RM Brief" call-to-action appears. The actual grounded brief is
+// produced only when the RM clicks generate (generateClientBrief).
+export const getClientBrief = async (id) => {
+  const cached = _generatedBriefs[id]
+  if (cached) return cached
+  const canGenerate = await hasClientIntelligence(id)
+  return canGenerate ? { _pending: true, status: 'draft' } : null
+}
 
-export const getBriefStatus = (id) => resolve(adapterGetBriefStatus(id))
+// Actually generates the grounded AI brief via the server (server-side OpenAI).
+// Returns null if the AI key is unavailable so the UI degrades gracefully.
+const _generatedBriefs = {}
+export const generateClientBrief = async (id) => {
+  try {
+    const res = await fetch(`${API_BASE}/api/clients/${id}/brief`, { method: 'POST' })
+    if (!res.ok) return null
+    const data = await res.json()
+    const brief = normaliseBrief(data)
+    if (brief) _generatedBriefs[id] = brief
+    return brief
+  } catch {
+    return null
+  }
+}
 
-export const setBriefStatus = (id, status) => resolve(adapterSetBriefStatus(id, status))
+// Brief review status is a frontend workflow concept (gates the client view).
+// Held in-memory per client; survives navigation within a session.
+const _briefStatus = {}
+export const getBriefStatus = (id) => resolve(_briefStatus[id] || 'none')
+export const setBriefStatus = (id, status) => {
+  _briefStatus[id] = status
+  return resolve(status)
+}
 
 // --- Notifications ---
 // Generic, mock notifications. Read-state is held in a module-level copy so the

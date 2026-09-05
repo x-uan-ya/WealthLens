@@ -1,368 +1,299 @@
 /**
  * abdullahIntelligence.js
  *
- * Phase 4: Abdullah Al-Mansoori (CL-0019) intelligence engine.
+ * Abdullah Al-Mansoori (CL-0019) intelligence engine — OFFICIAL schema.
+ *
+ * Client: USD base, "Balanced Growth" risk profile, mandate BALG, portfolio PF-0023.
+ * Story (all deterministic from official data @2026-08-26):
+ *   - Stated objective is to build wealth OUTSIDE the Gulf region and OUTSIDE
+ *     shipping (clients.csv objectives; RM notes N-025/N-026). Yet the portfolio
+ *     holds direct shipping equity (Pacific Orient Shipping, Asia Pacific Shipping
+ *     & Logistics Fund), energy equity (Global Energy Majors), and a Fixed Coupon
+ *     Note whose worst-of basket is Pacific Orient Shipping / Global Energy Majors
+ *     ADR / Bara Nusantara Energy — i.e. the note re-expresses the same shipping +
+ *     energy bet with no capital protection.
+ *   - The Strait of Hormuz event chain in event_log.csv (EVT-004/006/007/008/010/016)
+ *     transmits directly to exactly these holdings AND to the client's operating
+ *     shipping business at the same time.
+ *   - Confirmed-ish USD 5m Singapore family office seed capital (CN-017, "Likely", 2027).
  *
  * GOVERNANCE:
- *   - event_log.csv is authoritative for the Hormuz disruption — no invented events.
- *   - Scenario outputs MUST label: KNOWN DATA | ASSUMPTION | CALCULATED RESULT | UNCERTAINTY.
- *   - Scenarios are stress analysis tools, NOT forecasts.
- *   - AI must not calculate; all figures here are code-computed.
+ *   - event_log.csv is the ONLY authority for 2026 events — no invented events.
+ *   - Scenario labels: KNOWN DATA | ASSUMPTIONS | CALCULATED STRESS RESULT | UNCERTAINTY.
+ *   - Scenarios are stress tests, NOT forecasts. AI never calculates.
  */
 
 import { loadAllData } from './dataLoader.js'
 import {
   getClientAggregatedPortfolio,
   getHoldingsAtSnapshot,
-  getStructuredProductLookThrough,
-  compareSnapshots,
   getSnapshotHistory,
   LATEST_SNAPSHOT,
 } from './snapshotEngine.js'
+import { getRelevantEvents } from './eventGrounding.js'
 
 const CLIENT_ID = 'CL-0019'
+const PORTFOLIO_ID = 'PF-0023'
 
-// Sector classification — matches instruments.csv sector field keywords
-const SHIPPING_KEYWORDS = ['Shipping', 'shipping', 'Logistics', 'logistics']
-const ENERGY_KEYWORDS = ['Energy', 'energy', 'Petrochemical', 'petrochemical', 'LNG', 'lng']
+// Hormuz / energy-supply event chain (synthesised ids, all authoritative).
+const HORMUZ_EVENT_IDS = ['EVT-004', 'EVT-006', 'EVT-007', 'EVT-008', 'EVT-010', 'EVT-016']
 
-// ─── Sector Exposure Classification ───────────────────────────────────────────
+const SHIPPING_RE = /shipping|marine|logistics|charter|tanker|freight/i
+const ENERGY_RE = /energy|oil|petro|lng|crude/i
 
-function classifyHoldingExposure(holding, instrument) {
-  if (!instrument) return { shipping: false, energy: false }
-  const sectorStr = (instrument.sector || '') + ' ' + (instrument.sub_class || '') + ' ' + (instrument.name || '')
-  const shipping = SHIPPING_KEYWORDS.some(kw => sectorStr.includes(kw))
-  const energy = ENERGY_KEYWORDS.some(kw => sectorStr.includes(kw))
-  return { shipping, energy }
+function classify(h) {
+  const s = `${h.sector || ''} ${h.sub_asset_class || ''} ${h.instrument_name || ''}`
+  return { shipping: SHIPPING_RE.test(s), energy: ENERGY_RE.test(s) }
 }
 
-// ─── Shipping and Energy Exposure ─────────────────────────────────────────────
+// A structured note "re-expresses" shipping/energy if its underlying_reference
+// (instruments.csv) mentions shipping/energy names.
+function noteTouchesShippingEnergy(instrument) {
+  const ref = `${instrument?.underlying_reference || ''}`
+  return SHIPPING_RE.test(ref) || ENERGY_RE.test(ref)
+}
+
+// ─── Shipping & Energy Exposure ─────────────────────────────────────────────────
 
 export function calculateShippingEnergyExposure(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
-  const portfolios = store.portfoliosByClient[CLIENT_ID] || []
-  const evidence = []
+  const holdings = getHoldingsAtSnapshot(PORTFOLIO_ID, snapshotDate)
 
-  let totalChf = 0
-  let shippingChf = 0
-  let energyChf = 0
-  let shippingEnergyChf = 0  // combined for instruments touching both
+  let totalBase = 0
+  let shippingBase = 0
+  let energyBase = 0
+  let noteBase = 0
   const shippingHoldings = []
   const energyHoldings = []
-  const structuredHoldings = []
+  const noteHoldings = []
 
-  for (const pf of portfolios) {
-    const holdings = getHoldingsAtSnapshot(pf.portfolio_id, snapshotDate)
+  for (const h of holdings) {
+    const v = h.market_value_base
+    if (typeof v !== 'number') continue
+    totalBase += v
 
-    for (const h of holdings) {
-      if (typeof h.market_value_chf !== 'number') continue
-      totalChf += h.market_value_chf
+    const inst = store.instrumentById[h.instrument_id]
+    const { shipping, energy } = classify(h)
+    const isNote = (h.asset_class || '') === 'Structured Products'
 
-      const inst = store.instrumentById[h.instrument_id]
-      const { shipping, energy } = classifyHoldingExposure(h, inst)
-
-      if (shipping) {
-        shippingChf += h.market_value_chf
-        shippingHoldings.push({
-          holdingId: h.holding_id,
-          portfolioId: pf.portfolio_id,
-          instrumentId: h.instrument_id,
-          name: inst?.name || h.instrument_id,
-          assetClass: h.asset_class,
-          subClass: h.sub_class,
-          sector: inst?.sector,
-          valueChf: h.market_value_chf,
-          weightPct: h.weight_pct,
-          isStructured: inst?.is_structured || false,
-          notes: inst?.notes || null,
-        })
-      }
-
-      if (energy) {
-        energyChf += h.market_value_chf
-        energyHoldings.push({
-          holdingId: h.holding_id,
-          portfolioId: pf.portfolio_id,
-          instrumentId: h.instrument_id,
-          name: inst?.name || h.instrument_id,
-          assetClass: h.asset_class,
-          subClass: h.sub_class,
-          sector: inst?.sector,
-          valueChf: h.market_value_chf,
-          weightPct: h.weight_pct,
-          isStructured: inst?.is_structured || false,
-          notes: inst?.notes || null,
-        })
-      }
-    }
-
-    // Structured products look-through
-    const structured = getStructuredProductLookThrough(pf.portfolio_id, snapshotDate)
-    for (const s of structured) {
-      const hasShippingOrEnergy = s.underlyingExposures.some(u => {
-        const sectorStr = (u.sector || '') + ' ' + (u.name || '')
-        return [...SHIPPING_KEYWORDS, ...ENERGY_KEYWORDS].some(kw => sectorStr.includes(kw))
-      })
-      if (hasShippingOrEnergy) {
-        structuredHoldings.push(s)
-      }
+    if (shipping) { shippingBase += v; shippingHoldings.push(holdingRow(h)) }
+    if (energy && !shipping) { energyBase += v; energyHoldings.push(holdingRow(h)) }
+    if (isNote && noteTouchesShippingEnergy(inst)) {
+      noteBase += v
+      noteHoldings.push({ ...holdingRow(h), underlyingReference: inst?.underlying_reference || null, capitalProtected: false })
     }
   }
 
-  const shippingPct = totalChf > 0 ? Math.round((shippingChf / totalChf) * 1000) / 10 : 0
-  const energyPct = totalChf > 0 ? Math.round((energyChf / totalChf) * 1000) / 10 : 0
+  const pct = (n) => (totalBase > 0 ? Math.round((n / totalBase) * 10000) / 100 : 0)
+  // Direct shipping + energy + note that re-expresses shipping/energy.
+  const combinedBase = shippingBase + energyBase + noteBase
 
-  // Overlap check (JB Shipping/Energy Note INS-0024 touches both)
-  const combinedUniqueChf = shippingChf + energyChf  // May double-count INS-0024
-  const combinedPct = totalChf > 0 ? Math.round((combinedUniqueChf / totalChf) * 1000) / 10 : 0
-
-  evidence.push({
-    claim: 'Shipping exposure in investment portfolio',
-    value: `CHF ${shippingChf.toLocaleString()} (${shippingPct}%)`,
-    source: snapshotDate === LATEST_SNAPSHOT ? 'holdings.csv' : 'holdings_snapshots.csv',
-    recordIds: shippingHoldings.map(h => h.holdingId),
-    snapshot: snapshotDate,
-    calculation: `Sum of market_value_chf for holdings where instrument.sector contains shipping/logistics keywords`,
-    supportingFields: ['market_value_chf', 'instrument_id', 'sector'],
-  })
-
-  evidence.push({
-    claim: 'Energy/petrochemical exposure in investment portfolio',
-    value: `CHF ${energyChf.toLocaleString()} (${energyPct}%)`,
-    source: snapshotDate === LATEST_SNAPSHOT ? 'holdings.csv' : 'holdings_snapshots.csv',
-    recordIds: energyHoldings.map(h => h.holdingId),
-    snapshot: snapshotDate,
-    calculation: `Sum of market_value_chf for holdings where instrument.sector contains energy/petrochemical keywords`,
-    supportingFields: ['market_value_chf', 'instrument_id', 'sector'],
-  })
+  const evidence = [
+    {
+      claim: 'Direct shipping exposure in the portfolio',
+      value: `${pct(shippingBase)}% (USD ${Math.round(shippingBase).toLocaleString()})`,
+      source: 'holdings.csv',
+      recordId: PORTFOLIO_ID,
+      snapshot: snapshotDate,
+      calculation: 'Sum of market_value_base where sector/name matches shipping/logistics keywords / total',
+      supportingFields: ['market_value_base', 'sector', 'sub_asset_class', 'instrument_name'],
+    },
+    {
+      claim: 'Structured note re-expressing shipping/energy (no capital protection)',
+      value: `${pct(noteBase)}% — Fixed Coupon Note ref. Basket C, worst-of Pacific Orient Shipping / Global Energy Majors / Bara Nusantara Energy`,
+      source: 'holdings.csv + instruments.csv (underlying_reference)',
+      recordId: PORTFOLIO_ID,
+      snapshot: snapshotDate,
+      calculation: 'Structured Products holding whose instruments.underlying_reference names shipping/energy underlyings',
+      supportingFields: ['market_value_base', 'asset_class', 'underlying_reference'],
+    },
+  ]
 
   return {
     clientId: CLIENT_ID,
+    portfolioId: PORTFOLIO_ID,
     snapshotDate,
-    totalPortfolioChf: Math.round(totalChf),
-    shippingChf: Math.round(shippingChf),
-    shippingPct,
-    energyChf: Math.round(energyChf),
-    energyPct,
-    combinedShippingEnergyPct: combinedPct,
+    baseCurrency: holdings[0]?.portfolio_ccy || 'USD',
+    totalPortfolioBase: Math.round(totalBase),
+    shippingBase: Math.round(shippingBase),
+    shippingPct: pct(shippingBase),
+    energyBase: Math.round(energyBase),
+    energyPct: pct(energyBase),
+    noteBase: Math.round(noteBase),
+    notePct: pct(noteBase),
+    combinedShippingEnergyBase: Math.round(combinedBase),
+    combinedShippingEnergyPct: pct(combinedBase),
     shippingHoldings,
     energyHoldings,
-    structuredWithShippingEnergyExposure: structuredHoldings,
+    noteHoldings,
     evidence,
   }
 }
 
-// ─── Diversification Objective Analysis ───────────────────────────────────────
+function holdingRow(h) {
+  return {
+    instrumentId: h.instrument_id,
+    name: h.instrument_name,
+    assetClass: h.asset_class,
+    subClass: h.sub_asset_class,
+    sector: h.sector,
+    valueBase: Math.round(h.market_value_base || 0),
+    weightPct: h.weight_pct,
+  }
+}
+
+// ─── Objective Alignment ────────────────────────────────────────────────────────
 
 export function analyseObjectiveAlignment(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
-  const mandate = store.mandateByClient[CLIENT_ID]
+  const client = store.clientById[CLIENT_ID]
   const rmNotes = store.rmNotesByClient[CLIENT_ID] || []
   const exposure = calculateShippingEnergyExposure(snapshotDate)
 
-  // Find the formal diversification objective note
-  const divObjectiveNote = rmNotes.find(n => n.note_id === 'RMN-0019-002')
+  // The RM note where the client states the Asia portfolio should be uncorrelated
+  // with the Gulf shipping business.
+  const objectiveNote = rmNotes.find(n => /uncorrelated|diversif|gulf|shipping/i.test(n.note || '')) || rmNotes[0]
 
-  // Source of wealth: 65-70% in shipping/energy (from clients.csv context and RM notes)
-  const sowConcentrationPct = 67.5  // midpoint of stated 65-70% — from RM note RMN-0019-002
-
-  // Portfolio shipping/energy vs stated objective
-  const isObjectiveViolated = exposure.combinedShippingEnergyPct > 15  // tolerance threshold
-
+  const isMisaligned = exposure.combinedShippingEnergyPct > 15
   const objectiveEvidence = {
-    claim: 'Stated diversification objective vs actual portfolio shipping/energy exposure',
-    value: `Client stated "what we do in business, we should not also hold in this portfolio". Portfolio shipping/energy: ${exposure.combinedShippingEnergyPct}%`,
-    source: 'rm_notes.json + holdings.csv',
-    recordId: divObjectiveNote?.note_id || 'RMN-0019-002',
+    claim: 'Stated objective (diversify away from Gulf/shipping) vs actual shipping/energy exposure',
+    value: `Objective: "${client?.objectives || ''}". Actual combined shipping + energy + note exposure: ${exposure.combinedShippingEnergyPct}%`,
+    source: 'clients.csv (objectives) + rm_notes.json + holdings.csv',
+    recordId: objectiveNote?.note_id || CLIENT_ID,
     snapshot: snapshotDate,
-    calculation: `Combined shipping/energy exposure (${exposure.shippingPct}% shipping + ${exposure.energyPct}% energy) vs stated objective of maximum diversification`,
-    supportingFields: ['body', 'tags', 'market_value_chf', 'sector'],
+    calculation: `shipping ${exposure.shippingPct}% + energy ${exposure.energyPct}% + shipping/energy note ${exposure.notePct}% = ${exposure.combinedShippingEnergyPct}%`,
+    supportingFields: ['objectives', 'note', 'market_value_base', 'underlying_reference'],
   }
-
-  // The problematic holding: JB Shipping/Energy Note (INS-0024)
-  const problemNote = store.raw.holdings.find(h =>
-    h.portfolio_id.startsWith('PF-0019') && h.instrument_id === 'INS-0024'
-  ) || store.raw.holdingsSnapshots.find(h =>
-    h.portfolio_id.startsWith('PF-0019') && h.instrument_id === 'INS-0024' && h.snapshot_date === snapshotDate
-  )
 
   return {
     clientId: CLIENT_ID,
     snapshotDate,
-    statedObjective: divObjectiveNote?.body || 'Diversification from shipping/energy concentration',
-    statedObjectiveDate: divObjectiveNote?.note_date || '2026-05-18',
-    statedObjectiveSource: 'rm_notes.json / RMN-0019-002',
-    businessConcentrationPct: sowConcentrationPct,
+    statedObjective: client?.objectives || 'Build wealth outside the Gulf region and outside shipping',
+    statedObjectiveSource: 'clients.csv objectives + rm_notes.json',
+    objectiveNoteId: objectiveNote?.note_id || null,
+    objectiveNoteDate: objectiveNote?.note_date || null,
     portfolioShippingEnergyPct: exposure.combinedShippingEnergyPct,
-    objectiveMet: !isObjectiveViolated,
-    alignmentStatus: isObjectiveViolated ? 'MISALIGNED' : 'ALIGNED',
-    keyConflict: isObjectiveViolated ? {
-      description: 'Portfolio contains direct shipping/energy exposure that correlates with source of wealth concentration',
-      problematicHoldings: exposure.shippingHoldings.map(h => h.name)
-        .concat(exposure.energyHoldings.map(h => h.name))
-        .filter((v, i, arr) => arr.indexOf(v) === i),
-      mostProblematic: 'JB Shipping & Energy Diversified Note 2027 (INS-0024) — directly linked to shipping/energy basket with no capital protection',
+    alignmentStatus: isMisaligned ? 'MISALIGNED' : 'ALIGNED',
+    keyConflict: isMisaligned ? {
+      description: 'The portfolio holds direct shipping/energy AND a structured note whose worst-of basket is shipping/energy — the same bet the client wants to reduce, and the same conditions that drive his operating business.',
+      problematicHoldings: [
+        ...exposure.shippingHoldings.map(h => h.name),
+        ...exposure.energyHoldings.map(h => h.name),
+        ...exposure.noteHoldings.map(h => h.name),
+      ],
+      mostProblematic: exposure.noteHoldings[0]?.name || null,
     } : null,
     objectiveEvidence,
     exposure,
   }
 }
 
-// ─── Hormuz Scenario ───────────────────────────────────────────────────────────
+// ─── Hormuz Re-escalation Stress Test ────────────────────────────────────────────
 
-/**
- * Builds a scenario object for Hormuz disruption impact on Abdullah's portfolio.
- * ONLY uses event_log.csv for authoritative 2026 data.
- * Clearly labels each element as KNOWN DATA, ASSUMPTION, CALCULATED RESULT, or UNCERTAINTY.
- */
 export function buildHormuzScenario(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
-
-  // Retrieve authoritative events ONLY
-  const hormuzEvents = store.raw.eventLog.filter(e =>
-    e.authoritative === true &&
-    (e.event_id === 'EVT-2026-003' || e.event_id === 'EVT-2026-004' ||
-     e.event_id === 'EVT-2026-011' || e.event_id === 'EVT-2026-017')
-  )
-
-  if (hormuzEvents.length === 0) {
-    return {
-      error: 'No authoritative Hormuz events found in event_log.csv',
-      eventIds: [],
-    }
-  }
-
-  const disruptionEvent = hormuzEvents.find(e => e.event_id === 'EVT-2026-003')
-  const deEscalationEvent = hormuzEvents.find(e => e.event_id === 'EVT-2026-004')
-  const normalisationEvent = hormuzEvents.find(e => e.event_id === 'EVT-2026-011')
-  const ratesEvent = hormuzEvents.find(e => e.event_id === 'EVT-2026-017')
+  const events = HORMUZ_EVENT_IDS
+    .map(id => store.raw.eventLog.find(e => e.event_id === id))
+    .filter(Boolean)
 
   const exposure = calculateShippingEnergyExposure(snapshotDate)
 
-  // Known stress: shipping note (INS-0024) declined to 88 cents at Feb 27 snapshot
-  // Source: holdings_snapshots.csv SH-PF19A-004-B
-  const noteAtFeb27 = store.raw.holdingsSnapshots.find(h =>
-    h.instrument_id === 'INS-0024' && h.snapshot_date === '2026-02-27'
-  )
-  const noteAtDec31 = store.raw.holdingsSnapshots.find(h =>
-    h.instrument_id === 'INS-0024' && h.snapshot_date === '2025-12-31'
-  )
-  const noteAtLatest = store.raw.holdings.find(h =>
-    h.portfolio_id === 'PF-0019A' && h.instrument_id === 'INS-0024'
-  )
+  // ── ASSUMPTIONS (stated, not authoritative) — stress magnitudes for a full
+  //    Hormuz re-escalation, informed by the observed 2026 event severities. ──
+  const ASSUMPTION_SHIPPING_STRESS_PCT = -18
+  const ASSUMPTION_ENERGY_STRESS_PCT = -12
+  const ASSUMPTION_NOTE_STRESS_PCT = -22 // worst-of note, no capital protection → most exposed
 
-  // Gulf Energy Fund: marked from 22.5m to 21m at Feb 27
-  const gulfFundFeb27 = store.raw.holdingsSnapshots.find(h =>
-    h.instrument_id === 'INS-0020' && h.snapshot_date === '2026-02-27' && h.portfolio_id === 'PF-0019A'
-  )
-  const gulfFundDec31 = store.raw.holdingsSnapshots.find(h =>
-    h.instrument_id === 'INS-0020' && h.snapshot_date === '2025-12-31' && h.portfolio_id === 'PF-0019A'
-  )
-
-  // Compute observed losses at peak disruption (Feb 27 vs Dec 31)
-  const noteImpactUsd = noteAtFeb27 && noteAtDec31
-    ? (noteAtFeb27.market_value_local - noteAtDec31.market_value_local)
-    : null
-  const gulfFundImpactUsd = gulfFundFeb27 && gulfFundDec31
-    ? (gulfFundFeb27.market_value_local - gulfFundDec31.market_value_local)
-    : null
-
-  // Total observed impact in CHF
-  const noteImpactChf = noteImpactUsd ? Math.round(noteImpactUsd * 0.93) : null
-  const gulfFundImpactChf = gulfFundImpactUsd ? Math.round(gulfFundImpactUsd * 0.93) : null
-  const totalObservedImpactChf = (noteImpactChf || 0) + (gulfFundImpactChf || 0)
-
-  // For a STRESS SCENARIO (a re-escalation), apply assumptions
-  // These are ASSUMPTIONS — clearly labeled
-  const ASSUMPTION_SHIPPING_NOTE_STRESS_PCT = -20  // if disruption re-escalates to full closure
-  const ASSUMPTION_ENERGY_FUND_STRESS_PCT = -15
-  const ASSUMPTION_SHIPPING_EQUITIES_STRESS_PCT = -12
-
-  const currentNoteValueChf = noteAtLatest?.market_value_chf || 0
-  const stressNoteChf = Math.round(currentNoteValueChf * (ASSUMPTION_SHIPPING_NOTE_STRESS_PCT / 100))
-
-  const currentGulfFundHolding = store.raw.holdings.find(h =>
-    h.portfolio_id === 'PF-0019A' && h.instrument_id === 'INS-0020'
-  )
-  const stressGulfFundChf = currentGulfFundHolding
-    ? Math.round(currentGulfFundHolding.market_value_chf * (ASSUMPTION_ENERGY_FUND_STRESS_PCT / 100))
-    : 0
-
-  const dpWorldHolding = store.raw.holdings.find(h =>
-    h.portfolio_id === 'PF-0019A' && h.instrument_id === 'INS-0018'
-  )
-  const stressDpWorldChf = dpWorldHolding
-    ? Math.round(dpWorldHolding.market_value_chf * (ASSUMPTION_SHIPPING_EQUITIES_STRESS_PCT / 100) * 0.5)
-    : 0  // bonds less affected than equities
-
-  const totalStressImpactChf = stressNoteChf + stressGulfFundChf + stressDpWorldChf
-  const totalPortfolioChf = exposure.totalPortfolioChf
-  const stressImpactPct = totalPortfolioChf > 0
-    ? Math.round((Math.abs(totalStressImpactChf) / totalPortfolioChf) * 1000) / 10
-    : null
+  const shippingImpact = Math.round(exposure.shippingBase * (ASSUMPTION_SHIPPING_STRESS_PCT / 100))
+  const energyImpact = Math.round(exposure.energyBase * (ASSUMPTION_ENERGY_STRESS_PCT / 100))
+  const noteImpact = Math.round(exposure.noteBase * (ASSUMPTION_NOTE_STRESS_PCT / 100))
+  const totalImpact = shippingImpact + energyImpact + noteImpact
+  const totalBase = exposure.totalPortfolioBase
+  const impactPct = totalBase > 0 ? Math.round((Math.abs(totalImpact) / totalBase) * 10000) / 100 : null
 
   return {
     clientId: CLIENT_ID,
-    scenarioName: 'Strait of Hormuz Re-escalation Stress',
-    scenarioDescription: 'Stress test based on observed February 2026 disruption data and assumed re-escalation scenario. NOT a forecast.',
-    authoritativeEventIds: hormuzEvents.map(e => e.event_id),
+    scenarioName: 'Strait of Hormuz Re-escalation Stress Test',
+    scenarioDescription:
+      'Deterministic stress test: how the shipping, energy and worst-of note holdings respond to a re-escalation of the Strait of Hormuz disruption recorded in event_log.csv. NOT a forecast.',
+    authoritativeEventIds: events.map(e => e.event_id),
 
     knownData: {
-      _label: 'KNOWN DATA — sourced from event_log.csv and holdings_snapshots.csv',
-      disruptionDate: disruptionEvent?.event_date,
-      disruptionDescription: disruptionEvent?.event_title,
-      deEscalationDate: deEscalationEvent?.event_date,
-      normalisationDate: normalisationEvent?.event_date,
-      observedShippingRateSpike: ratesEvent?.market_impact_note || 'VLCC rates +165%, LNG +110%',
-      observedNoteDeclineUsd: noteImpactUsd,
-      observedGulfFundDeclineUsd: gulfFundImpactUsd,
-      observedTotalImpactChf: totalObservedImpactChf,
-      sourceRecords: [
-        noteAtFeb27?.holding_id,
-        noteAtDec31?.holding_id,
-        gulfFundFeb27?.holding_id,
-        gulfFundDec31?.holding_id,
-      ].filter(Boolean),
+      _label: 'KNOWN DATA — authoritative events from event_log.csv + current holdings from holdings.csv',
+      events: events.map(e => ({ eventId: e.event_id, date: e.event_date, type: e.event_type, region: e.region, severity: e.severity, transmission: e.primary_transmission, description: e.description })),
+      shippingExposureBase: exposure.shippingBase,
+      shippingExposurePct: exposure.shippingPct,
+      energyExposureBase: exposure.energyBase,
+      energyExposurePct: exposure.energyPct,
+      noteExposureBase: exposure.noteBase,
+      noteExposurePct: exposure.notePct,
+      combinedShippingEnergyPct: exposure.combinedShippingEnergyPct,
+      portfolioValueBase: totalBase,
+      baseCurrency: exposure.baseCurrency,
     },
 
     assumptions: {
-      _label: 'ASSUMPTIONS — not authoritative; used for stress scenario only',
-      shippingNoteAdditionalStressPct: ASSUMPTION_SHIPPING_NOTE_STRESS_PCT,
-      energyFundAdditionalStressPct: ASSUMPTION_ENERGY_FUND_STRESS_PCT,
-      dpWorldBondAdditionalStressPct: ASSUMPTION_SHIPPING_EQUITIES_STRESS_PCT,
-      rationale: 'Assumptions based on observed Feb 2026 event magnitudes scaled for a more severe re-escalation. Not independently verified.',
+      _label: 'ASSUMPTIONS — stated, not authoritative; used for this stress test only',
+      shippingStressPct: ASSUMPTION_SHIPPING_STRESS_PCT,
+      energyStressPct: ASSUMPTION_ENERGY_STRESS_PCT,
+      noteStressPct: ASSUMPTION_NOTE_STRESS_PCT,
+      rationale:
+        'Stress magnitudes chosen to represent a severe re-escalation, informed by the Severe-rated Hormuz events in event_log.csv. The worst-of note takes the largest hit because it has no capital protection and its underlyings are exactly the stressed sectors.',
     },
 
     calculatedStressResult: {
-      _label: 'CALCULATED STRESS RESULT — code-computed from current holdings + assumptions',
-      stressNoteImpactChf: stressNoteChf,
-      stressGulfFundImpactChf: stressGulfFundChf,
-      stressDpWorldImpactChf: stressDpWorldChf,
-      totalStressImpactChf,
-      portfolioStressImpactPct: stressImpactPct,
-      currentPortfolioValueChf: totalPortfolioChf,
-      portfolioValueAfterStressChf: totalPortfolioChf + totalStressImpactChf,
+      _label: 'CALCULATED STRESS RESULT — arithmetic on current holdings + stated assumptions',
+      shippingImpactBase: shippingImpact,
+      energyImpactBase: energyImpact,
+      noteImpactBase: noteImpact,
+      totalStressImpactBase: totalImpact,
+      portfolioStressImpactPct: impactPct != null ? -impactPct : null,
+      currentPortfolioValueBase: totalBase,
+      portfolioValueAfterStressBase: totalBase + totalImpact,
+      baseCurrency: exposure.baseCurrency,
     },
 
+    affectedExposures: [
+      { label: 'Direct shipping', value: `${exposure.shippingPct}% (USD ${exposure.shippingBase.toLocaleString()})` },
+      { label: 'Energy', value: `${exposure.energyPct}% (USD ${exposure.energyBase.toLocaleString()})` },
+      { label: 'Shipping/energy note (no protection)', value: `${exposure.notePct}% (USD ${exposure.noteBase.toLocaleString()})` },
+    ],
+
+    portfolioImplications: [
+      `A Hormuz re-escalation would concentrate losses in exactly the sectors the client wants to reduce: an estimated USD ${Math.abs(totalImpact).toLocaleString()} (${impactPct}% of the portfolio) under the stated assumptions.`,
+      'The worst-of Fixed Coupon Note has no capital protection, so a shipping/energy drawdown is amplified rather than buffered.',
+    ],
+
+    objectiveImplications: [
+      'The client\u2019s stated objective is to build wealth outside the Gulf and outside shipping. A regional re-escalation hits the portfolio and his operating shipping business simultaneously — the opposite of the diversification he asked for (RM note N-025).',
+    ],
+
     uncertainty: {
-      _label: 'UNCERTAINTY',
       items: [
-        'Private fund marks (Gulf Energy Infrastructure Fund) are quarterly estimates, not daily prices',
-        'The JB Shipping/Energy Note (INS-0024) mark depends on the issuer — not independently verified',
-        'Operational shipping business impact is not included (this covers investment portfolio only)',
-        'De-escalation timeline is unknown — stress duration affects total impact significantly',
-        'Correlation between holdings may be higher than assumed in a severe disruption',
+        'The stress percentages are illustrative assumptions, not forecasts.',
+        'The worst-of note mark is issuer-provided and not independently verified.',
+        'Correlation between shipping, energy and the note may be higher in a severe disruption than assumed.',
+        'The impact on the client\u2019s operating business is not modelled here (portfolio only).',
+        'De-escalation timing is unknown and materially affects total impact.',
       ],
     },
 
-    hormuzEvents: hormuzEvents.map(e => ({
-      eventId: e.event_id,
-      date: e.event_date,
-      title: e.event_title,
-      severity: e.severity,
-      marketImpact: e.market_impact_note,
-      sourceReference: e.source_reference,
-    })),
+    rmConsiderations: [
+      'Review the combined shipping/energy/note exposure against the stated diversification objective.',
+      'Discuss how a re-escalation would affect the portfolio and the operating business at the same time.',
+      'Model the reciprocal case the client asked about (RM note N-026): what a Strait reopening/normalisation would mean.',
+    ],
+
+    evidence: [
+      ...exposure.evidence,
+      {
+        label: 'Authoritative Hormuz event chain',
+        value: events.map(e => `${e.event_id} ${e.event_date} (${e.severity})`).join('; '),
+        source: 'event_log.csv',
+        snapshot: snapshotDate,
+        record: events.map(e => e.event_id).join(', '),
+      },
+    ],
   }
 }
 
@@ -371,7 +302,8 @@ export function buildHormuzScenario(snapshotDate = LATEST_SNAPSHOT) {
 export function getAbdullahIntelligence(snapshotDate = LATEST_SNAPSHOT) {
   const store = loadAllData()
   const client = store.clientById[CLIENT_ID]
-  const mandate = store.mandateByClient[CLIENT_ID]
+  const pf = store.portfolioById[PORTFOLIO_ID]
+  const mandateRows = store.mandateRowsByCode[pf?.mandate_code] || []
 
   const exposure = calculateShippingEnergyExposure(snapshotDate)
   const objectiveAlignment = analyseObjectiveAlignment(snapshotDate)
@@ -382,158 +314,153 @@ export function getAbdullahIntelligence(snapshotDate = LATEST_SNAPSHOT) {
   const cashNeeds = store.cashNeedsByClient[CLIENT_ID] || []
   const commitments = store.commitmentsByClient[CLIENT_ID] || []
 
-  // Relevant events from event_log
-  const relevantEvents = store.raw.eventLog.filter(e =>
-    e.authoritative === true && (
-      e.affected_sectors?.includes('Shipping') ||
-      e.affected_sectors?.includes('Energy') ||
-      e.affected_regions?.includes('UAE') ||
-      e.affected_regions?.includes('Middle East')
-    )
-  ).map(e => ({
-    eventId: e.event_id,
-    date: e.event_date,
-    title: e.event_title,
-    type: e.event_type,
-    severity: e.severity,
-    affectedSectors: e.affected_sectors,
-    marketImpact: e.market_impact_note,
-    source: e.source_reference,
-  }))
+  const relevantEvents = getRelevantEvents(CLIENT_ID, ['Middle East', 'Global'], ['Oil', 'energy', 'shipping', 'supply', 'Hormuz'])
 
   const signals = []
 
-  // Signal 1: Objective misalignment
+  // Signal 1: objective misalignment
   if (objectiveAlignment.alignmentStatus === 'MISALIGNED') {
     signals.push({
       id: 'ABD-SIG-001',
       type: 'objective_alignment',
       severity: 'high',
-      title: 'Portfolio exposure conflicts with stated diversification objective',
-      summary: `Client explicitly stated diversification from shipping/energy as primary objective (${objectiveAlignment.statedObjectiveDate}). Portfolio still contains ${exposure.combinedShippingEnergyPct}% shipping/energy exposure.`,
+      title: 'Portfolio conflicts with the stated diversification objective',
+      summary: `The client wants wealth built outside the Gulf and outside shipping, yet ${exposure.combinedShippingEnergyPct}% of the portfolio is shipping, energy, or a worst-of note on those same sectors.`,
       verifiedMetrics: {
-        statedObjectiveDate: objectiveAlignment.statedObjectiveDate,
         portfolioShippingPct: exposure.shippingPct,
         portfolioEnergyPct: exposure.energyPct,
+        shippingEnergyNotePct: exposure.notePct,
         combinedExposurePct: exposure.combinedShippingEnergyPct,
-        businessConcentrationPct: objectiveAlignment.businessConcentrationPct,
         problematicInstruments: objectiveAlignment.keyConflict?.problematicHoldings || [],
       },
       relevanceFactors: [
-        'Formally stated client objective on record (RMN-0019-002)',
-        'JB Shipping/Energy Note (INS-0024) directly correlates with source of wealth',
-        'Client experienced double-loss during Hormuz event (business + portfolio)',
+        'Objective is explicit in clients.csv and reinforced in RM note N-025',
+        'The Fixed Coupon Note\u2019s worst-of basket is Pacific Orient Shipping / Global Energy Majors / Bara Nusantara Energy',
+        'The same conditions drive the client\u2019s operating shipping business',
       ],
       evidence: [objectiveAlignment.objectiveEvidence],
-      uncertainty: 'Indirect exposure through diversification portfolio funds may also have incidental sector exposure not captured here.',
+      uncertainty: 'Broad index funds may carry incidental shipping/energy exposure not captured in this classification.',
     })
   }
 
-  // Signal 2: Structured note correlation risk
-  const shippingNote = store.raw.holdings.find(h =>
-    h.portfolio_id === 'PF-0019A' && h.instrument_id === 'INS-0024'
-  )
-  if (shippingNote) {
+  // Signal 2: worst-of note correlation / no capital protection
+  const note = exposure.noteHoldings[0]
+  if (note) {
     signals.push({
       id: 'ABD-SIG-002',
       type: 'structured_product',
       severity: 'high',
-      title: 'Shipping/Energy note has no capital protection and correlates with source of wealth',
-      summary: `INS-0024 (JB Shipping & Energy Note, maturity Mar 2027) is principal-at-risk and directly linked to shipping/energy basket. Current value CHF ${shippingNote.market_value_chf?.toLocaleString()} vs CHF 9,300,000 at acquisition.`,
+      title: 'Yield-enhancement note has no capital protection and re-expresses the concentration',
+      summary: `${note.name} is ${note.weightPct}% of the portfolio. Its worst-of basket (${note.underlyingReference}) is principal-at-risk and directly correlated with the client\u2019s shipping/energy concentration.`,
       verifiedMetrics: {
-        instrumentId: 'INS-0024',
-        currentValueChf: shippingNote.market_value_chf,
-        acquisitionValueChf: 9300000,
-        unrealisedPnlChf: (shippingNote.market_value_chf || 0) - 9300000,
-        maturityDate: '2027-03-31',
-        capitalProtection: false,
+        instrumentId: note.instrumentId,
+        weightPct: note.weightPct,
+        valueBase: note.valueBase,
+        underlyingReference: note.underlyingReference,
+        capitalProtected: false,
       },
       relevanceFactors: [
-        'No capital protection — full downside exposure',
-        'Underlying basket includes DP World, Energy Transfer, Gulf Energy Fund',
-        'Client has already experienced loss on this note during Hormuz (Feb 2026)',
+        'Worst-of structure means the note tracks the weakest underlying',
+        'Underlyings overlap directly with the client\u2019s direct holdings and business',
+        'Subscribed knowingly on a charter-rate view (RM note N-025)',
       ],
       evidence: [{
-        claim: 'JB Shipping/Energy Note current mark vs acquisition',
-        value: `Current CHF ${shippingNote.market_value_chf?.toLocaleString()} | Acquisition CHF 9,300,000 | P&L CHF ${((shippingNote.market_value_chf || 0) - 9300000).toLocaleString()}`,
-        source: 'holdings.csv',
-        recordId: shippingNote.holding_id,
+        claim: 'Fixed Coupon Note ref. Basket C exposure and underlying',
+        value: `${note.weightPct}% | USD ${note.valueBase.toLocaleString()} | worst-of: ${note.underlyingReference}`,
+        source: 'holdings.csv + instruments.csv',
+        recordId: note.instrumentId,
         snapshot: snapshotDate,
-        calculation: 'market_value_chf from holdings.csv vs cost_basis_chf',
-        supportingFields: ['market_value_chf', 'cost_basis_chf', 'unrealised_pnl_chf'],
+        calculation: 'market_value_base + weight_pct from holdings.csv; underlying_reference from instruments.csv',
+        supportingFields: ['market_value_base', 'weight_pct', 'underlying_reference'],
       }],
-      uncertainty: 'Structured product mark is issuer-provided. Independent verification not available in this dataset.',
+      uncertainty: 'Structured note mark is issuer-provided; not independently verified.',
     })
   }
 
-  // Signal 3: Hormuz scenario risk
+  // Signal 3: Hormuz scenario
   signals.push({
     id: 'ABD-SIG-003',
     type: 'scenario',
     severity: 'medium',
-    title: 'Hormuz re-escalation stress scenario: potential CHF impact calculated',
-    summary: `Based on February 2026 event data, a re-escalation stress scenario shows potential portfolio impact of CHF ${Math.abs(hormuzScenario.calculatedStressResult?.totalStressImpactChf || 0).toLocaleString()} (${hormuzScenario.calculatedStressResult?.portfolioStressImpactPct}% of portfolio). THIS IS NOT A FORECAST.`,
+    title: 'Hormuz re-escalation stress test — potential portfolio impact calculated',
+    summary: `Using the authoritative Hormuz event chain and current holdings, a re-escalation stress test estimates a USD ${Math.abs(hormuzScenario.calculatedStressResult.totalStressImpactBase).toLocaleString()} impact (${Math.abs(hormuzScenario.calculatedStressResult.portfolioStressImpactPct)}% of portfolio). THIS IS A STRESS TEST, NOT A FORECAST.`,
     verifiedMetrics: {
-      stressImpactChf: hormuzScenario.calculatedStressResult?.totalStressImpactChf,
-      stressImpactPct: hormuzScenario.calculatedStressResult?.portfolioStressImpactPct,
-      basedOnAuthoritativeEvents: hormuzScenario.authoritativeEventIds,
+      stressImpactBase: hormuzScenario.calculatedStressResult.totalStressImpactBase,
+      stressImpactPct: hormuzScenario.calculatedStressResult.portfolioStressImpactPct,
+      authoritativeEventIds: hormuzScenario.authoritativeEventIds,
       isScenario: true,
       isForecast: false,
     },
     relevanceFactors: [
-      'Client has direct operational exposure through Al-Mansoori Group shipping business',
+      'Client has direct operating exposure to shipping through his own business',
       'Portfolio shipping/energy exposure compounds the operational risk',
     ],
-    evidence: [hormuzScenario.knownData],
-    uncertainty: hormuzScenario.uncertainty?.items || [],
+    evidence: [{
+      claim: 'Hormuz stress test inputs',
+      value: `Events ${hormuzScenario.authoritativeEventIds.join(', ')}; portfolio USD ${hormuzScenario.calculatedStressResult.currentPortfolioValueBase.toLocaleString()}`,
+      source: 'event_log.csv + holdings.csv',
+      recordId: hormuzScenario.authoritativeEventIds.join(', '),
+      snapshot: snapshotDate,
+      calculation: 'Stress percentages applied to current shipping/energy/note market_value_base',
+      supportingFields: ['market_value_base', 'severity', 'primary_transmission'],
+    }],
+    uncertainty: hormuzScenario.uncertainty.items,
   })
 
-  // Priority factors
   const priorityFactors = {
-    objectiveAlignment: objectiveAlignment.alignmentStatus === 'MISALIGNED' ? 25 : 5,
-    structuredProductRisk: 20,
+    objectiveMisalignment: objectiveAlignment.alignmentStatus === 'MISALIGNED' ? 25 : 5,
+    structuredProductRisk: note ? 20 : 0,
     scenarioExposure: 15,
-    liquidityImpact: 10,
+    concentrationSeverity: exposure.combinedShippingEnergyPct > 35 ? 15 : 10,
   }
   const priorityScore = Object.values(priorityFactors).reduce((s, v) => s + v, 0)
 
   return {
     clientId: CLIENT_ID,
-    clientName: client?.full_name || 'Abdullah Al-Mansoori',
+    clientName: client?.client_name || 'Abdullah Al-Mansoori',
     rmId: store.rm.rm_id,
     rmName: store.rm.rm_name,
     snapshotDate,
-    priority: priorityScore >= 60 ? 'high' : 'medium',
+    priority: priorityScore >= 70 ? 'high' : priorityScore >= 50 ? 'medium' : 'low',
     priorityScore,
     priorityFactors,
+    hormuzScenario,
+    scenario: hormuzScenario,
     mandate: {
-      mandateId: mandate?.mandate_id,
-      mandateType: mandate?.mandate_type,
-      mandateName: mandate?.mandate_name,
-      equityRange: `${mandate?.equity_min_pct}-${mandate?.equity_max_pct}%`,
-      baseCurrency: mandate?.currency_base,
-      diversificationNote: mandate?.notes,
+      mandateCode: pf?.mandate_code,
+      mandateName: pf?.mandate_name,
+      baseCurrency: pf?.base_currency,
+      equityBand: mandateBand(mandateRows, 'Equity'),
+      singlePositionMaxPct: mandateRows[0]?.max_single_position_pct ?? null,
     },
     aggregatePortfolio,
     shippingEnergyExposure: exposure,
     objectiveAlignment,
-    hormuzScenario,
-    signals: signals.sort((a, b) => {
-      const sev = { high: 3, medium: 2, low: 1 }
-      return (sev[b.severity] || 0) - (sev[a.severity] || 0)
-    }),
+    signals: sortBySeverity(signals),
     snapshotHistory,
     relevantEvents,
     cashNeeds,
     commitments,
-    rmNotes: rmNotes.map(n => ({
-      noteId: n.note_id,
-      date: n.note_date,
-      type: n.note_type,
-      subject: n.subject,
-      body: n.body,
-      tags: n.tags,
-      actionRequired: n.action_required,
-    })),
+    rmNotes: mapRmNotes(rmNotes),
   }
+}
+
+// ─── shared helpers ─────────────────────────────────────────────────────────────
+
+function mandateBand(rows, assetClass) {
+  const r = rows.find(x => x.asset_class === assetClass)
+  return r ? `${r.min_pct}-${r.max_pct}% (target ${r.target_pct}%)` : null
+}
+function sortBySeverity(signals) {
+  const sev = { high: 3, medium: 2, low: 1 }
+  return signals.slice().sort((a, b) => (sev[b.severity] || 0) - (sev[a.severity] || 0))
+}
+function mapRmNotes(notes) {
+  return (notes || []).map(n => ({
+    noteId: n.note_id,
+    date: n.note_date,
+    channel: n.channel,
+    rmName: n.rm_name,
+    body: n.note,
+  }))
 }

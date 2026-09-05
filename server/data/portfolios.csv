@@ -1,24 +1,25 @@
-portfolio_id,client_id,portfolio_name,portfolio_type,base_currency,inception_date,mandate_id,status,custodian,description
-PF-0001,CL-0001,Whitfield Core Portfolio,Single,CHF,2015-03-15,MND-0001,Active,Julius Baer Zurich,Primary advisory portfolio
-PF-0002,CL-0002,Tanaka Growth Portfolio,Single,JPY,2012-06-20,MND-0002,Active,Julius Baer Singapore,Growth-focused advisory
-PF-0003A,CL-0003,Voss-Brenner Main Portfolio,Primary,EUR,2009-09-10,MND-0003,Active,Julius Baer Zurich,Primary discretionary — inheritance assets
-PF-0003B,CL-0003,Voss-Brenner Income Portfolio,Secondary,EUR,2018-03-01,MND-0003,Active,Julius Baer Zurich,Income-focused sleeve — established post inheritance tax settlement
-PF-0004,CL-0004,Mehta Advisory Portfolio,Single,USD,2018-04-08,MND-0004,Active,Julius Baer Singapore,Tech-founder diversification
-PF-0005,CL-0005,Sorokina Growth Portfolio,Single,CHF,2010-11-15,MND-0005,Active,Julius Baer Geneva,Energy-wealth diversification
-PF-0006,CL-0006,Adeyemi Family Portfolio,Single,USD,2013-07-22,MND-0006,Active,Julius Baer Singapore,Balanced wealth preservation
-PF-0007,CL-0007,Ng Retirement Portfolio,Single,SGD,2016-02-18,MND-0007,Active,Julius Baer Singapore,Conservative retirement income
-PF-0008,CL-0008,Mendoza Growth Portfolio,Single,USD,2017-08-14,MND-0008,Active,Julius Baer Singapore,Consumer goods wealth diversification
-PF-0009,CL-0009,Halvorsen Balanced Portfolio,Single,NOK,2020-03-09,MND-0009,Active,Julius Baer Zurich,Shipping inheritance diversification + ESG
-PF-0010,CL-0010,Cohen Aggressive Portfolio,Single,USD,2008-05-12,MND-0010,Active,Julius Baer Tel Aviv,Tech/venture concentrated growth
-PF-0011,CL-0011,Al-Rashid Preservation Portfolio,Single,USD,2007-10-05,MND-0011,Active,Julius Baer Dubai,Conservative capital preservation
-PF-0012,CL-0012,Beaumont Balanced Portfolio,Single,EUR,2019-06-25,MND-0012,Active,Julius Baer Geneva,Luxury brand exit — diversification
-PF-0013,CL-0013,Krishnaswamy Growth Portfolio,Single,SGD,2021-09-15,MND-0013,Active,Julius Baer Singapore,Tech-founder growth + impact
-PF-0014A,CL-0014,Lau Core Portfolio,Primary,HKD,2011-04-20,MND-0014,Active,Julius Baer Hong Kong,Primary advisory — property-linked wealth
-PF-0014B,CL-0014,Lau Structured Products Portfolio,Secondary,HKD,2015-09-01,MND-0014,Active,Julius Baer Hong Kong,Structured products + yield enhancement
-PF-0015,CL-0015,Fontaine Conservative Portfolio,Single,EUR,2014-08-12,MND-0015,Active,Julius Baer Geneva,Pharma inheritance — conservative
-PF-0016,CL-0016,Han Technology Portfolio,Single,KRW,2016-09-20,MND-0016,Active,Julius Baer Singapore,Semiconductor wealth — growth
-PF-0017,CL-0017,O'Brien Balanced Portfolio,Single,EUR,2022-03-30,MND-0017,Active,Julius Baer Geneva,Pharma exit — balanced
-PF-0018,CL-0018,Petrov Conservative Portfolio,Single,EUR,2020-07-15,MND-0018,Active,Julius Baer Zurich,Property inheritance — conservative
-PF-0019A,CL-0019,Al-Mansoori Core Portfolio,Primary,USD,2006-12-10,MND-0019,Active,Julius Baer Dubai,Primary — shipping/energy conglomerate wealth
-PF-0019B,CL-0019,Al-Mansoori Diversification Portfolio,Secondary,USD,2014-06-01,MND-0019,Active,Julius Baer Dubai,Diversification sleeve — reducing sector concentration
-PF-0020,CL-0020,Lefebvre Sustainable Portfolio,Single,CAD,2023-05-22,MND-0020,Active,Julius Baer Toronto,Clean energy exit — sustainable growth
+portfolio_id,client_id,portfolio_name,mandate_code,mandate_name,service_model,base_currency,inception_date,benchmark,aum_2025-12-31,aum_2026-02-27,aum_2026-03-31,aum_2026-06-30,aum_2026-08-26,aum_usd_current
+PF-0001,CL-0001,Core Discretionary Mandate,BALG,Balanced Growth,Discretionary,SGD,2019-04-01,JB Balanced Growth SGD Composite,31070745.0,32682988.0,32806576.5,35836081.19,36346958.36,26883844.94
+PF-0002,CL-0001,Legacy Holdings Custody Account,BALG,Balanced Growth,Custody,SGD,2019-04-01,None - custody only,19969200.0,20723560.98,26755132.74,25301639.53,26618144.28,19687976.54
+PF-0003,CL-0002,Advisory Growth Portfolio,GROW,Growth,Advisory,USD,2021-09-01,JB Growth USD Composite,11876500.0,12683100.0,12231550.0,14370100.0,14779200.0,14779200.0
+PF-0004,CL-0002,Founder Shareholding Custody,GROW,Growth,Custody,USD,2021-09-01,None - custody only,31920000.0,31920000.0,31920000.0,31920000.0,31920000.0,31920000.0
+PF-0005,CL-0003,Inherited Portfolio - Under Review,CONS,Conservative,Advisory,EUR,2026-02-16,JB Conservative EUR Composite,20273256.61,20850743.23,19869207.46,20188438.85,20312395.29,22181135.66
+PF-0006,CL-0004,Retirement Income Mandate,INC,Income,Discretionary,USD,2012-07-01,JB Income USD Composite,35819618.6,36218541.22,34406537.83,33775981.04,33453055.03,33453055.03
+PF-0007,CL-0005,Sustainable Balanced Mandate,SUSBAL,Sustainable Balanced,Discretionary,SGD,2017-12-01,JB Sustainable Balanced SGD Composite,24316037.0,24987178.0,25783696.5,25848628.5,26229797.6,19400737.87
+PF-0008,CL-0006,Advisory Balanced Portfolio,BAL,Balanced,Advisory,SGD,2020-02-01,JB Balanced SGD Composite,24827328.0,25177590.5,24559016.5,24594224.5,24434687.2,18072993.49
+PF-0009,CL-0007,Core Balanced Mandate,BAL,Balanced,Discretionary,USD,2008-05-01,JB Balanced USD Composite,37110368.0,39892672.0,40301311.0,40056866.8,40019276.0,40019276.0
+PF-0010,CL-0008,Advisory Balanced Portfolio,BAL,Balanced,Advisory,SGD,2015-10-01,JB Balanced SGD Composite,15660203.6,16087153.2,15864324.4,16079217.4,16159842.24,11952546.04
+PF-0011,CL-0009,Post-Sale Deployment Portfolio,BAL,Balanced,Advisory,EUR,2024-06-01,JB Balanced EUR Composite,28393209.21,28730602.62,28318526.7,28740691.63,28950186.3,31613603.44
+PF-0012,CL-0010,Sustainable Balanced Mandate,SUSBAL,Sustainable Balanced,Discretionary,SGD,2024-08-01,JB Sustainable Balanced SGD Composite,10439630.0,10706707.0,10776392.0,10944377.0,11063329.6,8182936.09
+PF-0013,CL-0011,Consolidated Family Account,CONS,Conservative,Advisory,SGD,2003-03-01,JB Conservative SGD Composite,48873096.0,49334606.0,48433360.0,48335709.0,47772976.0,35335041.42
+PF-0014,CL-0012,Retirement Income Mandate,INC,Income,Discretionary,USD,2010-11-01,JB Income USD Composite,30130861.79,30533507.12,29066748.87,28259656.67,28028704.71,28028704.71
+PF-0015,CL-0013,Advisory Growth Portfolio,GROW,Growth,Advisory,USD,2019-01-01,JB Growth USD Composite,31165393.58,33040984.62,31881276.78,35912924.3,36952084.12,36952084.12
+PF-0016,CL-0014,Advisory Balanced Portfolio,BAL,Balanced,Advisory,HKD,2011-04-01,JB Balanced HKD Composite,219536340.0,245469500.0,222792925.0,212160650.0,206878860.0,26488970.55
+PF-0017,CL-0015,Dynamic Opportunistic Portfolio,DYN,Dynamic Opportunistic,Advisory,USD,2022-05-01,JB Dynamic USD Composite,11964226.32,12524283.12,14301050.63,14626478.26,14985635.85,14985635.85
+PF-0018,CL-0016,Advisory Balanced Portfolio,BAL,Balanced,Advisory,JPY,2016-08-01,JB Balanced JPY Composite,2145212960.0,2214083760.0,2222308840.0,2300366840.0,2306782610.0,14508066.73
+PF-0019,CL-0017,Family Office Core Mandate,BAL,Balanced,Discretionary,USD,2009-12-01,JB Balanced USD Composite,40901240.0,42041260.0,41026130.0,41622224.0,41809580.0,41809580.0
+PF-0020,CL-0017,Alternatives Sleeve,ALTS,Alternatives Sleeve,Advisory,USD,2013-03-01,JB Alternatives USD Composite,33452000.0,33819000.0,33952700.0,33955500.0,34178000.0,34178000.0
+PF-0021,CL-0017,Next Generation Account,GROW,Growth,Custody,USD,2020-09-01,None - custody only,11147600.0,11628800.0,11508500.0,11765900.0,11915400.0,11915400.0
+PF-0022,CL-0018,Advisory Balanced Portfolio,BAL,Balanced,Advisory,EUR,2019-07-01,JB Balanced EUR Composite,20290636.4,21140575.25,20752378.5,20722556.9,20693978.91,22597824.97
+PF-0023,CL-0019,Advisory Balanced Growth Portfolio,BALG,Balanced Growth,Advisory,USD,2014-02-01,JB Balanced Growth USD Composite,25583211.81,26195446.15,27474722.84,31381355.24,32214266.33,32214266.33
+PF-0024,CL-0020,Advisory Growth Portfolio,GROW,Growth,Advisory,USD,2021-03-01,JB Growth USD Composite,18063650.39,18525474.05,18154462.73,18761818.22,19059758.28,19059758.28

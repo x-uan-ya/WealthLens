@@ -1,13 +1,18 @@
 /**
  * eventGrounding.js
  *
- * Phase 7: event_log.csv retrieval and AI context injection.
+ * event_log.csv retrieval and AI context injection — OFFICIAL schema.
+ *
+ * Official event_log.csv columns (16 rows, no id column):
+ *   event_date, event_type, region, description, primary_transmission, severity
+ * dataLoader synthesises a stable event_id (EVT-001..016 by row order) and
+ * marks every row authoritative:true (the official log is THE authority for 2026).
  *
  * GOVERNANCE:
  *   - event_log.csv is authoritative for 2026 events.
- *   - Only events with authoritative=true are injected as AI context.
+ *   - Only events present in the log are injected as AI context.
  *   - If no authoritative event supports a claim, AI must not assert it.
- *   - All events returned include their event_id for traceability.
+ *   - Every event returned carries its synthesised event_id for traceability.
  */
 
 import { loadAllData } from './dataLoader.js'
@@ -19,63 +24,61 @@ import { loadAllData } from './dataLoader.js'
  */
 export function getAllAuthoritativeEvents() {
   const store = loadAllData()
-  return store.raw.eventLog
-    .filter(e => e.authoritative === true)
-    .map(formatEvent)
+  return store.raw.eventLog.filter(e => e.authoritative === true).map(formatEvent)
 }
 
 /**
- * Returns events relevant to a given client based on their portfolio sector exposures
- * and geographic focus.
+ * Returns events relevant to a client. Matching is done on the official fields:
+ *   - region                (e.g. "Middle East", "Europe", "Global")
+ *   - primary_transmission  (free-text channel, e.g. "Oil price / energy",
+ *                             "Rates / duration", "Equity risk sentiment")
+ * A caller may pass explicit region/transmission keyword lists; otherwise they
+ * are inferred from the client's holdings + profile.
  *
  * @param {string} clientId
- * @param {string[]} sectors - e.g. ['Real Estate', 'Shipping', 'Technology']
- * @param {string[]} regions - e.g. ['Hong Kong', 'UAE', 'Europe']
- * @returns {Array} Matched authoritative events with relevance explanation
+ * @param {string[]} regionKeywords
+ * @param {string[]} transmissionKeywords
  */
-export function getRelevantEvents(clientId, sectors = [], regions = []) {
+export function getRelevantEvents(clientId, regionKeywords = [], transmissionKeywords = []) {
   const store = loadAllData()
-
   const client = store.clientById[clientId]
   if (!client) return []
 
-  // Build sector and region sets from client context if not provided
-  const effectiveSectors = sectors.length > 0 ? sectors : inferClientSectors(clientId, store)
-  const effectiveRegions = regions.length > 0 ? regions : inferClientRegions(clientId, store)
+  const regions = regionKeywords.length > 0 ? regionKeywords : inferClientRegions(clientId, store)
+  const channels = transmissionKeywords.length > 0 ? transmissionKeywords : inferClientTransmissions(clientId, store)
 
   const events = store.raw.eventLog.filter(e => {
     if (e.authoritative !== true) return false
+    const region = (e.region || '').toLowerCase()
+    const transmission = (e.primary_transmission || '').toLowerCase()
+    const desc = (e.description || '').toLowerCase()
 
-    const affectedSectors = (e.affected_sectors || '').split(';').map(s => s.trim())
-    const affectedRegions = (e.affected_regions || '').split(';').map(r => r.trim())
-
-    const sectorMatch = effectiveSectors.some(s =>
-      affectedSectors.some(as => as.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(as.toLowerCase()))
-    )
-    const regionMatch = effectiveRegions.some(r =>
-      affectedRegions.some(ar => ar.toLowerCase().includes(r.toLowerCase()) || r.toLowerCase().includes(ar.toLowerCase()))
-    )
-
-    return sectorMatch || regionMatch
+    const regionMatch = regions.some(r => {
+      const rr = r.toLowerCase()
+      return region.includes(rr) || rr.includes(region) || desc.includes(rr)
+    })
+    const channelMatch = channels.some(c => {
+      const cc = c.toLowerCase()
+      return transmission.includes(cc) || desc.includes(cc)
+    })
+    // "Global" events touch everyone.
+    const isGlobal = region.includes('global')
+    return regionMatch || channelMatch || isGlobal
   })
 
   return events.map(e => ({
     ...formatEvent(e),
-    matchedSectors: (e.affected_sectors || '').split(';').filter(s =>
-      effectiveSectors.some(es => es.toLowerCase().includes(s.trim().toLowerCase()) || s.trim().toLowerCase().includes(es.toLowerCase()))
-    ),
-    matchedRegions: (e.affected_regions || '').split(';').filter(r =>
-      effectiveRegions.some(er => er.toLowerCase().includes(r.trim().toLowerCase()) || r.trim().toLowerCase().includes(er.toLowerCase()))
-    ),
+    matchedRegions: regions.filter(r => (e.region || '').toLowerCase().includes(r.toLowerCase()) || (e.description || '').toLowerCase().includes(r.toLowerCase())),
+    matchedTransmissions: channels.filter(c => (e.primary_transmission || '').toLowerCase().includes(c.toLowerCase()) || (e.description || '').toLowerCase().includes(c.toLowerCase())),
   }))
 }
 
 /**
- * Returns events by their IDs (for direct signal-to-event linking).
+ * Returns events by their synthesised IDs (for direct signal-to-event linking).
  */
 export function getEventsByIds(eventIds) {
   const store = loadAllData()
-  return eventIds
+  return (eventIds || [])
     .map(id => store.raw.eventLog.find(e => e.event_id === id))
     .filter(Boolean)
     .filter(e => e.authoritative === true)
@@ -83,15 +86,11 @@ export function getEventsByIds(eventIds) {
 }
 
 /**
- * Builds the event context block to inject into OpenAI prompts.
- * Returns a structured text block that the AI system prompt references.
- *
- * GOVERNANCE: AI must only reference events in this block. If not here, it didn't happen.
+ * Builds the event context block injected into OpenAI prompts.
+ * GOVERNANCE: AI may only reference events in this block.
  */
 export function buildEventContextForAI(clientId, eventIds = null) {
-  const store = loadAllData()
   let events
-
   if (eventIds && eventIds.length > 0) {
     events = getEventsByIds(eventIds)
   } else {
@@ -103,6 +102,7 @@ export function buildEventContextForAI(clientId, eventIds = null) {
       eventCount: 0,
       contextText: 'No authoritative events from event_log.csv are relevant to this client context.',
       events: [],
+      eventIds: [],
     }
   }
 
@@ -113,10 +113,9 @@ export function buildEventContextForAI(clientId, eventIds = null) {
     '',
     ...events.map(e => [
       `[${e.eventId}] ${e.date} — ${e.title}`,
-      `Type: ${e.type} | Severity: ${e.severity}`,
+      `Type: ${e.type} | Region: ${e.region} | Severity: ${e.severity}`,
+      `Transmission: ${e.transmission}`,
       `Description: ${e.description}`,
-      `Market Impact: ${e.marketImpact}`,
-      `Source: ${e.sourceReference}`,
       '',
     ].join('\n')),
     '=== END AUTHORITATIVE EVENTS ===',
@@ -132,46 +131,46 @@ export function buildEventContextForAI(clientId, eventIds = null) {
 
 // ─── Inference Helpers ─────────────────────────────────────────────────────────
 
-function inferClientSectors(clientId, store) {
-  const portfolios = store.portfoliosByClient[clientId] || []
-  const sectors = new Set()
+// Map holding sectors/regions to the transmission channels used in event_log.
+const SECTOR_TRANSMISSION_HINTS = [
+  { match: /energy|oil|petro|shipping|marine|logistics|industrials/i, channels: ['Oil', 'energy', 'shipping', 'supply', 'Hormuz'] },
+  { match: /financ|bank/i, channels: ['Rates', 'credit', 'banking'] },
+  { match: /real estate|property/i, channels: ['Rates', 'credit', 'property'] },
+  { match: /technology|information technology|semiconductor/i, channels: ['Equity risk', 'technology', 'megacap'] },
+  { match: /consumer|luxury/i, channels: ['Equity risk', 'consumer'] },
+]
 
+function inferClientTransmissions(clientId, store) {
+  const channels = new Set(['Equity risk']) // broad market sentiment touches most books
+  const portfolios = store.portfoliosByClient[clientId] || []
   for (const pf of portfolios) {
-    const holdings = store.holdingsByPortfolio[pf.portfolio_id] || []
-    for (const h of holdings) {
-      const inst = store.instrumentById[h.instrument_id]
-      if (inst?.sector) {
-        inst.sector.split('/').forEach(s => sectors.add(s.trim()))
+    const byDate = store.holdingsByPortfolioSnapshot[pf.portfolio_id] || {}
+    const rows = byDate['2026-08-26'] || Object.values(byDate).flat()
+    for (const h of rows) {
+      const sectorStr = `${h.sector || ''} ${h.sub_asset_class || ''} ${h.instrument_name || ''}`
+      for (const hint of SECTOR_TRANSMISSION_HINTS) {
+        if (hint.match.test(sectorStr)) hint.channels.forEach(c => channels.add(c))
       }
     }
   }
-
-  // Also add client's source of wealth sector
-  const client = store.clientById[clientId]
-  if (client?.business_sector) {
-    client.business_sector.split('/').forEach(s => sectors.add(s.trim()))
-  }
-
-  return Array.from(sectors)
+  return Array.from(channels)
 }
 
 function inferClientRegions(clientId, store) {
-  const client = store.clientById[clientId]
   const regions = new Set()
+  const client = store.clientById[clientId]
+  if (client?.base_currency === 'EUR') regions.add('Europe')
+  if (client?.base_currency === 'HKD') { regions.add('Asia'); regions.add('Greater China') }
+  if (client?.base_currency === 'USD') regions.add('Global')
 
-  if (client?.domicile_country) regions.add(client.domicile_country)
-  if (client?.domicile_city) regions.add(client.domicile_city)
-
-  // Portfolio instrument geographies
   const portfolios = store.portfoliosByClient[clientId] || []
   for (const pf of portfolios) {
-    const holdings = store.holdingsByPortfolio[pf.portfolio_id] || []
-    for (const h of holdings) {
-      const inst = store.instrumentById[h.instrument_id]
-      if (inst?.geography) regions.add(inst.geography)
+    const byDate = store.holdingsByPortfolioSnapshot[pf.portfolio_id] || {}
+    const rows = byDate['2026-08-26'] || Object.values(byDate).flat()
+    for (const h of rows) {
+      if (h.region) regions.add(h.region)
     }
   }
-
   return Array.from(regions)
 }
 
@@ -179,14 +178,13 @@ function formatEvent(e) {
   return {
     eventId: e.event_id,
     date: e.event_date,
-    title: e.event_title,
+    title: e.description ? e.description.split('.')[0] : e.event_type,
     type: e.event_type,
-    affectedRegions: (e.affected_regions || '').split(';').map(s => s.trim()),
-    affectedSectors: (e.affected_sectors || '').split(';').map(s => s.trim()),
+    region: e.region,
+    transmission: e.primary_transmission,
     severity: e.severity,
     description: e.description,
-    marketImpact: e.market_impact_note,
-    sourceReference: e.source_reference,
     authoritative: true,
+    source: 'event_log.csv',
   }
 }

@@ -1,51 +1,116 @@
-context_id,snapshot_date,asset_class,region,metric_name,metric_value,currency,unit,source_note
-MC-001,2025-12-31,Equity,Hong Kong,Hang Seng Index Level,20142,,points,Year-end 2025
-MC-002,2025-12-31,Equity,Hong Kong,HSI YTD Return,-2.8,,pct,Year-end 2025
-MC-003,2025-12-31,Fixed Income,USD,US 10Y Treasury Yield,4.58,,pct,Year-end 2025
-MC-004,2025-12-31,FX,HKD,HKDUSD,0.1285,,rate,Year-end 2025 — peg range
-MC-005,2025-12-31,FX,EUR,EURCHF,0.940,,rate,Year-end 2025
-MC-006,2025-12-31,Equity,Global,MSCI World YTD Return,14.2,,pct,Year-end 2025
-MC-007,2025-12-31,Commodity,Global,Brent Crude USD/bbl,74.20,USD,USD per barrel,Year-end 2025
-MC-008,2025-12-31,Equity,US,S&P 500 Level,5882,,points,Year-end 2025
-MC-009,2025-12-31,FX,USD,USDCHF,0.897,,rate,Year-end 2025
-MC-010,2025-12-31,Equity,Hong Kong,HSI Real Estate Sub-Index Level,14820,,points,Year-end 2025
-MC-011,2026-02-27,Equity,Hong Kong,Hang Seng Index Level,18640,,points,Post tariff shock — Feb 27 2026
-MC-012,2026-02-27,Equity,Hong Kong,HSI YTD Return,-7.5,,pct,Feb 27 2026
-MC-013,2026-02-27,Fixed Income,USD,US 10Y Treasury Yield,4.72,,pct,Feb 27 2026 — flight to quality mixed
-MC-014,2026-02-27,FX,HKD,HKDUSD,0.1283,,rate,Feb 27 2026
-MC-015,2026-02-27,FX,EUR,EURCHF,0.938,,rate,Feb 27 2026
-MC-016,2026-02-27,Commodity,Global,Brent Crude USD/bbl,68.50,USD,USD per barrel,Feb 27 2026 — demand concern
-MC-017,2026-02-27,Equity,Shipping,Baltic Dry Index,1240,,points,Feb 27 2026 — Hormuz concern
-MC-018,2026-02-27,Equity,Global,MSCI World YTD Return,-4.1,,pct,Feb 27 2026
-MC-019,2026-02-27,Equity,US,S&P 500 Level,5440,,points,Feb 27 2026
-MC-020,2026-02-27,Equity,Hong Kong,HSI Real Estate Sub-Index Level,13120,,points,Feb 27 2026 — property sector under pressure
-MC-021,2026-03-31,Equity,Hong Kong,Hang Seng Index Level,18940,,points,Mar 31 2026 — partial stabilisation
-MC-022,2026-03-31,Equity,Hong Kong,HSI YTD Return,-6.0,,pct,Mar 31 2026
-MC-023,2026-03-31,Fixed Income,USD,US 10Y Treasury Yield,4.65,,pct,Mar 31 2026
-MC-024,2026-03-31,Commodity,Global,Brent Crude USD/bbl,70.20,USD,USD per barrel,Mar 31 2026
-MC-025,2026-03-31,Equity,Shipping,Baltic Dry Index,1320,,points,Mar 31 2026
-MC-026,2026-03-31,Equity,Global,MSCI World YTD Return,-2.8,,pct,Mar 31 2026
-MC-027,2026-03-31,Equity,US,S&P 500 Level,5590,,points,Mar 31 2026
-MC-028,2026-03-31,Equity,Hong Kong,HSI Real Estate Sub-Index Level,13480,,points,Mar 31 2026
-MC-029,2026-06-30,Equity,Hong Kong,Hang Seng Index Level,20480,,points,Jun 30 2026 — recovery as Hormuz de-escalated
-MC-030,2026-06-30,Equity,Hong Kong,HSI YTD Return,1.7,,pct,Jun 30 2026
-MC-031,2026-06-30,Fixed Income,USD,US 10Y Treasury Yield,4.48,,pct,Jun 30 2026
-MC-032,2026-06-30,Commodity,Global,Brent Crude USD/bbl,74.80,USD,USD per barrel,Jun 30 2026
-MC-033,2026-06-30,Equity,Shipping,Baltic Dry Index,1480,,points,Jun 30 2026 — recovering
-MC-034,2026-06-30,Equity,Global,MSCI World YTD Return,4.6,,pct,Jun 30 2026
-MC-035,2026-06-30,Equity,US,S&P 500 Level,6050,,points,Jun 30 2026
-MC-036,2026-06-30,Equity,Hong Kong,HSI Real Estate Sub-Index Level,14620,,points,Jun 30 2026
-MC-037,2026-08-26,Equity,Hong Kong,Hang Seng Index Level,20820,,points,Aug 26 2026 — latest snapshot
-MC-038,2026-08-26,Equity,Hong Kong,HSI YTD Return,3.4,,pct,Aug 26 2026
-MC-039,2026-08-26,Fixed Income,USD,US 10Y Treasury Yield,4.42,,pct,Aug 26 2026
-MC-040,2026-08-26,FX,HKD,HKDUSD,0.1282,,rate,Aug 26 2026
-MC-041,2026-08-26,FX,EUR,EURCHF,0.955,,rate,Aug 26 2026
-MC-042,2026-08-26,Commodity,Global,Brent Crude USD/bbl,77.40,USD,USD per barrel,Aug 26 2026
-MC-043,2026-08-26,Equity,Shipping,Baltic Dry Index,1560,,points,Aug 26 2026
-MC-044,2026-08-26,Equity,Global,MSCI World YTD Return,8.1,,pct,Aug 26 2026
-MC-045,2026-08-26,Equity,US,S&P 500 Level,6210,,points,Aug 26 2026
-MC-046,2026-08-26,Equity,Hong Kong,HSI Real Estate Sub-Index Level,14980,,points,Aug 26 2026
-MC-047,2026-08-26,FX,USD,USDCHF,0.930,,rate,Aug 26 2026
-MC-048,2026-08-26,FX,EUR,EURUSD,1.028,,rate,Aug 26 2026
-MC-049,2026-08-26,Equity,Germany,DAX Level,18840,,points,Aug 26 2026
-MC-050,2026-08-26,Equity,Korea,KOSPI Level,2860,,points,Aug 26 2026
+snapshot_date,series_id,series_name,category,unit,value,snapshot_label
+2025-12-31,SPX,S&P 500 Index,Equity index,points,6902.0,Year-end 2025 baseline
+2025-12-31,NASDAQ_COMP,Nasdaq Composite Index,Equity index,points,23150.0,Year-end 2025 baseline
+2025-12-31,MSCI_ASIA_XJP,MSCI Asia ex-Japan Index,Equity index,points,742.0,Year-end 2025 baseline
+2025-12-31,HSI,Hang Seng Index,Equity index,points,24800.0,Year-end 2025 baseline
+2025-12-31,STI,Straits Times Index,Equity index,points,4180.0,Year-end 2025 baseline
+2025-12-31,GOLD_USD_OZ,Gold spot,Commodity,USD/troy oz,4310.0,Year-end 2025 baseline
+2025-12-31,BRENT_USD_BBL,Brent crude,Commodity,USD/barrel,69.0,Year-end 2025 baseline
+2025-12-31,TTF_GAS_EUR_MWH,Dutch TTF natural gas front-month,Commodity,EUR/MWh,32.0,Year-end 2025 baseline
+2025-12-31,UST_10Y_PCT,US Treasury 10-year yield,Rates,percent,4.05,Year-end 2025 baseline
+2025-12-31,UST_2Y_PCT,US Treasury 2-year yield,Rates,percent,3.68,Year-end 2025 baseline
+2025-12-31,FED_FUNDS_UPPER_PCT,"Fed funds target, upper bound",Rates,percent,3.75,Year-end 2025 baseline
+2025-12-31,US_CPI_YOY_PCT,"US headline CPI, year-on-year",Macro,percent,2.7,Year-end 2025 baseline
+2025-12-31,VIX,CBOE Volatility Index,Volatility,points,15.2,Year-end 2025 baseline
+2025-12-31,USDSGD,USD/SGD,FX,SGD per USD,1.29,Year-end 2025 baseline
+2025-12-31,USDHKD,USD/HKD,FX,HKD per USD,7.79,Year-end 2025 baseline
+2025-12-31,EURUSD,EUR/USD,FX,USD per EUR,1.16,Year-end 2025 baseline
+2025-12-31,USDCHF,USD/CHF,FX,CHF per USD,0.79,Year-end 2025 baseline
+2025-12-31,USDJPY,USD/JPY,FX,JPY per USD,152.0,Year-end 2025 baseline
+2025-12-31,GBPUSD,GBP/USD,FX,USD per GBP,1.345,Year-end 2025 baseline
+2025-12-31,USDCNH,USD/CNH,FX,CNH per USD,7.08,Year-end 2025 baseline
+2025-12-31,USDIDR,USD/IDR,FX,IDR per USD,16250.0,Year-end 2025 baseline
+2025-12-31,USDTHB,USD/THB,FX,THB per USD,33.1,Year-end 2025 baseline
+2025-12-31,USDINR,USD/INR,FX,INR per USD,88.2,Year-end 2025 baseline
+2026-02-27,SPX,S&P 500 Index,Equity index,points,7180.0,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,NASDAQ_COMP,Nasdaq Composite Index,Equity index,points,24620.0,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,MSCI_ASIA_XJP,MSCI Asia ex-Japan Index,Equity index,points,760.5,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,HSI,Hang Seng Index,Equity index,points,25350.0,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,STI,Straits Times Index,Equity index,points,4265.0,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,GOLD_USD_OZ,Gold spot,Commodity,USD/troy oz,5050.0,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,BRENT_USD_BBL,Brent crude,Commodity,USD/barrel,72.4,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,TTF_GAS_EUR_MWH,Dutch TTF natural gas front-month,Commodity,EUR/MWh,34.5,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,UST_10Y_PCT,US Treasury 10-year yield,Rates,percent,3.95,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,UST_2Y_PCT,US Treasury 2-year yield,Rates,percent,3.6,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,FED_FUNDS_UPPER_PCT,"Fed funds target, upper bound",Rates,percent,3.75,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,US_CPI_YOY_PCT,"US headline CPI, year-on-year",Macro,percent,2.9,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,VIX,CBOE Volatility Index,Volatility,points,17.8,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDSGD,USD/SGD,FX,SGD per USD,1.31,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDHKD,USD/HKD,FX,HKD per USD,7.8,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,EURUSD,EUR/USD,FX,USD per EUR,1.145,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDCHF,USD/CHF,FX,CHF per USD,0.8,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDJPY,USD/JPY,FX,JPY per USD,154.0,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,GBPUSD,GBP/USD,FX,USD per GBP,1.332,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDCNH,USD/CNH,FX,CNH per USD,7.12,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDIDR,USD/IDR,FX,IDR per USD,16400.0,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDTHB,USD/THB,FX,THB per USD,33.5,Pre-conflict (last business day before 28 Feb offensive)
+2026-02-27,USDINR,USD/INR,FX,INR per USD,88.9,Pre-conflict (last business day before 28 Feb offensive)
+2026-03-31,SPX,S&P 500 Index,Equity index,points,7050.0,Post-Hormuz closure
+2026-03-31,NASDAQ_COMP,Nasdaq Composite Index,Equity index,points,23880.0,Post-Hormuz closure
+2026-03-31,MSCI_ASIA_XJP,MSCI Asia ex-Japan Index,Equity index,points,727.0,Post-Hormuz closure
+2026-03-31,HSI,Hang Seng Index,Equity index,points,24100.0,Post-Hormuz closure
+2026-03-31,STI,Straits Times Index,Equity index,points,4110.0,Post-Hormuz closure
+2026-03-31,GOLD_USD_OZ,Gold spot,Commodity,USD/troy oz,5240.0,Post-Hormuz closure
+2026-03-31,BRENT_USD_BBL,Brent crude,Commodity,USD/barrel,104.0,Post-Hormuz closure
+2026-03-31,TTF_GAS_EUR_MWH,Dutch TTF natural gas front-month,Commodity,EUR/MWh,78.0,Post-Hormuz closure
+2026-03-31,UST_10Y_PCT,US Treasury 10-year yield,Rates,percent,4.35,Post-Hormuz closure
+2026-03-31,UST_2Y_PCT,US Treasury 2-year yield,Rates,percent,3.92,Post-Hormuz closure
+2026-03-31,FED_FUNDS_UPPER_PCT,"Fed funds target, upper bound",Rates,percent,3.75,Post-Hormuz closure
+2026-03-31,US_CPI_YOY_PCT,"US headline CPI, year-on-year",Macro,percent,3.4,Post-Hormuz closure
+2026-03-31,VIX,CBOE Volatility Index,Volatility,points,31.4,Post-Hormuz closure
+2026-03-31,USDSGD,USD/SGD,FX,SGD per USD,1.335,Post-Hormuz closure
+2026-03-31,USDHKD,USD/HKD,FX,HKD per USD,7.815,Post-Hormuz closure
+2026-03-31,EURUSD,EUR/USD,FX,USD per EUR,1.115,Post-Hormuz closure
+2026-03-31,USDCHF,USD/CHF,FX,CHF per USD,0.815,Post-Hormuz closure
+2026-03-31,USDJPY,USD/JPY,FX,JPY per USD,158.0,Post-Hormuz closure
+2026-03-31,GBPUSD,GBP/USD,FX,USD per GBP,1.301,Post-Hormuz closure
+2026-03-31,USDCNH,USD/CNH,FX,CNH per USD,7.21,Post-Hormuz closure
+2026-03-31,USDIDR,USD/IDR,FX,IDR per USD,16950.0,Post-Hormuz closure
+2026-03-31,USDTHB,USD/THB,FX,THB per USD,34.6,Post-Hormuz closure
+2026-03-31,USDINR,USD/INR,FX,INR per USD,90.4,Post-Hormuz closure
+2026-06-30,SPX,S&P 500 Index,Equity index,points,7410.0,Half-year 2026
+2026-06-30,NASDAQ_COMP,Nasdaq Composite Index,Equity index,points,25320.0,Half-year 2026
+2026-06-30,MSCI_ASIA_XJP,MSCI Asia ex-Japan Index,Equity index,points,753.0,Half-year 2026
+2026-06-30,HSI,Hang Seng Index,Equity index,points,24950.0,Half-year 2026
+2026-06-30,STI,Straits Times Index,Equity index,points,4290.0,Half-year 2026
+2026-06-30,GOLD_USD_OZ,Gold spot,Commodity,USD/troy oz,4780.0,Half-year 2026
+2026-06-30,BRENT_USD_BBL,Brent crude,Commodity,USD/barrel,96.0,Half-year 2026
+2026-06-30,TTF_GAS_EUR_MWH,Dutch TTF natural gas front-month,Commodity,EUR/MWh,61.0,Half-year 2026
+2026-06-30,UST_10Y_PCT,US Treasury 10-year yield,Rates,percent,4.52,Half-year 2026
+2026-06-30,UST_2Y_PCT,US Treasury 2-year yield,Rates,percent,4.05,Half-year 2026
+2026-06-30,FED_FUNDS_UPPER_PCT,"Fed funds target, upper bound",Rates,percent,3.75,Half-year 2026
+2026-06-30,US_CPI_YOY_PCT,"US headline CPI, year-on-year",Macro,percent,4.2,Half-year 2026
+2026-06-30,VIX,CBOE Volatility Index,Volatility,points,22.6,Half-year 2026
+2026-06-30,USDSGD,USD/SGD,FX,SGD per USD,1.345,Half-year 2026
+2026-06-30,USDHKD,USD/HKD,FX,HKD per USD,7.82,Half-year 2026
+2026-06-30,EURUSD,EUR/USD,FX,USD per EUR,1.098,Half-year 2026
+2026-06-30,USDCHF,USD/CHF,FX,CHF per USD,0.826,Half-year 2026
+2026-06-30,USDJPY,USD/JPY,FX,JPY per USD,161.0,Half-year 2026
+2026-06-30,GBPUSD,GBP/USD,FX,USD per GBP,1.288,Half-year 2026
+2026-06-30,USDCNH,USD/CNH,FX,CNH per USD,7.26,Half-year 2026
+2026-06-30,USDIDR,USD/IDR,FX,IDR per USD,17200.0,Half-year 2026
+2026-06-30,USDTHB,USD/THB,FX,THB per USD,35.1,Half-year 2026
+2026-06-30,USDINR,USD/INR,FX,INR per USD,91.2,Half-year 2026
+2026-08-26,SPX,S&P 500 Index,Equity index,points,7530.0,Current
+2026-08-26,NASDAQ_COMP,Nasdaq Composite Index,Equity index,points,26010.0,Current
+2026-08-26,MSCI_ASIA_XJP,MSCI Asia ex-Japan Index,Equity index,points,764.0,Current
+2026-08-26,HSI,Hang Seng Index,Equity index,points,25280.0,Current
+2026-08-26,STI,Straits Times Index,Equity index,points,4335.0,Current
+2026-08-26,GOLD_USD_OZ,Gold spot,Commodity,USD/troy oz,4622.6,Current
+2026-08-26,BRENT_USD_BBL,Brent crude,Commodity,USD/barrel,101.5,Current
+2026-08-26,TTF_GAS_EUR_MWH,Dutch TTF natural gas front-month,Commodity,EUR/MWh,68.0,Current
+2026-08-26,UST_10Y_PCT,US Treasury 10-year yield,Rates,percent,4.66,Current
+2026-08-26,UST_2Y_PCT,US Treasury 2-year yield,Rates,percent,4.14,Current
+2026-08-26,FED_FUNDS_UPPER_PCT,"Fed funds target, upper bound",Rates,percent,3.75,Current
+2026-08-26,US_CPI_YOY_PCT,"US headline CPI, year-on-year",Macro,percent,4.0,Current
+2026-08-26,VIX,CBOE Volatility Index,Volatility,points,25.1,Current
+2026-08-26,USDSGD,USD/SGD,FX,SGD per USD,1.352,Current
+2026-08-26,USDHKD,USD/HKD,FX,HKD per USD,7.81,Current
+2026-08-26,EURUSD,EUR/USD,FX,USD per EUR,1.092,Current
+2026-08-26,USDCHF,USD/CHF,FX,CHF per USD,0.831,Current
+2026-08-26,USDJPY,USD/JPY,FX,JPY per USD,159.0,Current
+2026-08-26,GBPUSD,GBP/USD,FX,USD per GBP,1.282,Current
+2026-08-26,USDCNH,USD/CNH,FX,CNH per USD,7.23,Current
+2026-08-26,USDIDR,USD/IDR,FX,IDR per USD,17050.0,Current
+2026-08-26,USDTHB,USD/THB,FX,THB per USD,34.8,Current
+2026-08-26,USDINR,USD/INR,FX,INR per USD,90.8,Current
