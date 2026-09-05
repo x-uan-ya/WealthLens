@@ -17,6 +17,7 @@ import { preferenceSchema, defaultPreferences } from '../data/preferences.js'
 import {
   normaliseRm,
   normaliseClient,
+  normalisePriority,
   indexPriority,
   normaliseIntelligence,
   normaliseScenario,
