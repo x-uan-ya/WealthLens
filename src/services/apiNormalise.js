@@ -123,12 +123,19 @@ function formatMetricValue(key, v) {
 function normaliseEvidence(evidence) {
   if (!Array.isArray(evidence)) return []
   return evidence.map((e) => ({
-    // Server evidence -> EvidenceInspector shape.
-    label: e.label || e.claim,
-    value: e.value,
-    source: e.source,
-    snapshot: e.snapshot,
-    record: e.record || e.recordId || (e.calculation ? `Calc: ${e.calculation}` : undefined),
+    // Server evidence -> EvidenceInspector shape. Coerce every field to text so
+    // an object value never renders as "[object Object]".
+    label: toText(e.label || e.claim),
+    value: toText(e.value),
+    source: e.source ? toText(e.source) : undefined,
+    snapshot: e.snapshot ? toText(e.snapshot) : undefined,
+    record: e.record
+      ? toText(e.record)
+      : e.recordId
+      ? toText(e.recordId)
+      : e.calculation
+      ? `Calc: ${toText(e.calculation)}`
+      : undefined,
   }))
 }
 
@@ -288,6 +295,56 @@ function normaliseRmContext(rmContext) {
 }
 
 // ─── AI brief (server) -> RMBrief component shape ──────────────────────────────
+
+// Coerce any model/engine value into a display string. Guards against OpenAI
+// returning objects/arrays where a string is expected (which otherwise renders
+// as "[object Object]" in the UI).
+function toText(v) {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (Array.isArray(v)) return v.map(toText).filter(Boolean).join(' ')
+  // Object: prefer common text-bearing keys, else a readable "k: v" join.
+  if (typeof v === 'object') {
+    for (const k of ['text', 'point', 'note', 'title', 'summary', 'description', 'label']) {
+      if (typeof v[k] === 'string' && v[k]) return v[k]
+    }
+    if (typeof v.value === 'string' && !v.label) return v.value
+    return Object.entries(v)
+      .filter(([k]) => !k.startsWith('_'))
+      .map(([k, val]) => `${k}: ${toText(val)}`)
+      .join(' · ')
+  }
+  return String(v)
+}
+
+// Coerce a model/engine value into an array of display strings.
+function toTextList(v) {
+  if (v == null) return []
+  const arr = Array.isArray(v) ? v : [v]
+  return arr.map(toText).filter(Boolean)
+}
+
+// Normalise one evidence reference into { label, value, source, snapshot }.
+// Handles plain strings and objects with varying key names from the model.
+function toEvidenceRef(ref) {
+  if (typeof ref === 'string') {
+    // Strings look like "holdings.csv · PF-0016" — split source from record.
+    const [source, ...rest] = ref.split('·').map((s) => s.trim())
+    return { label: ref, value: '', source: source || undefined, record: rest.join(' · ') || undefined }
+  }
+  if (ref && typeof ref === 'object') {
+    return {
+      label: toText(ref.label ?? ref.claim ?? ref.reference ?? ref.record ?? ref.source ?? ref),
+      value: toText(ref.value ?? ''),
+      source: ref.source ? toText(ref.source) : undefined,
+      snapshot: ref.snapshot ? toText(ref.snapshot) : undefined,
+      record: ref.record ? toText(ref.record) : ref.recordId ? toText(ref.recordId) : undefined,
+    }
+  }
+  return { label: toText(ref), value: '' }
+}
+
 export function normaliseBrief(serverBrief) {
   // /api/clients/:id/brief returns { brief: { <aiFields>, _metadata } }
   const b = serverBrief?.brief || serverBrief
@@ -295,15 +352,15 @@ export function normaliseBrief(serverBrief) {
   const ai = b.aiBrief || b
   return {
     status: 'draft',
-    situation: ai.summary || ai.situation || '',
-    whyItMatters: ai.whyItMatters || '',
-    verifiedEvidence: (ai.evidenceReferences || []).map((ref) =>
-      typeof ref === 'string' ? { label: ref, value: '' } : ref
-    ),
-    clientContext: ai.rmPreparationNotes || ai.clientContext || '',
-    discussionPoints: ai.discussionPoints || [],
-    uncertainty: Array.isArray(ai.uncertainties) ? ai.uncertainties.join(' ') : ai.uncertainty || '',
-    clientFriendlySummary: ai.clientFriendlySummary || '',
+    situation: toText(ai.summary || ai.situation),
+    whyItMatters: toText(ai.whyItMatters),
+    verifiedEvidence: (Array.isArray(ai.evidenceReferences) ? ai.evidenceReferences : [])
+      .map(toEvidenceRef)
+      .filter((e) => e.label),
+    clientContext: toText(ai.rmPreparationNotes || ai.clientContext),
+    discussionPoints: toTextList(ai.discussionPoints),
+    uncertainty: toTextList(ai.uncertainties).join(' ') || toText(ai.uncertainty),
+    clientFriendlySummary: toText(ai.clientFriendlySummary),
     _briefId: b.briefId || null,
     _metadata: ai._metadata || b._metadata || null,
   }

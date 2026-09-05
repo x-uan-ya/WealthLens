@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { X, FileText, Database, Table, StickyNote, CalendarDays } from 'lucide-react'
+import { X, FileText, Database, Table, StickyNote, CalendarDays, Download } from 'lucide-react'
 
 // EvidenceInspector — reusable, fully prop-driven evidence drawer.
 //
@@ -35,6 +35,27 @@ export function EvidenceInspector({ open, onClose, title, evidence = [] }) {
 
   if (!open) return null
 
+  // Export the evidence records as a CSV file (traceable, spreadsheet-friendly).
+  const handleDownload = () => {
+    if (!evidence.length) return
+    const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const header = ['Claim', 'Value', 'Source', 'Snapshot', 'Record']
+    const rows = evidence.map((e) =>
+      [e.label, e.value, e.source, e.snapshot, e.record].map(csvCell).join(',')
+    )
+    const csv = [header.map(csvCell).join(','), ...rows].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const safeTitle = (title || 'evidence').replace(/[^\w-]+/g, '_').slice(0, 60)
+    a.href = url
+    a.download = `${safeTitle}_evidence.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   // Group evidence rows by their source file.
   const groups = evidence.reduce((acc, item) => {
     const key = item.source || 'Unattributed'
@@ -55,9 +76,20 @@ export function EvidenceInspector({ open, onClose, title, evidence = [] }) {
             <div className="eyebrow">Evidence</div>
             <h3 style={{ fontSize: 16, marginTop: 4 }}>{title || 'Supporting records'}</h3>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close evidence">
-            <X size={18} />
-          </button>
+          <div className="row" style={{ gap: 6 }}>
+            {evidence.length > 0 && (
+              <button
+                className="btn btn-sm"
+                onClick={handleDownload}
+                title="Download evidence records as CSV"
+              >
+                <Download size={14} /> Download
+              </button>
+            )}
+            <button className="icon-btn" onClick={onClose} aria-label="Close evidence">
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="evi-body">

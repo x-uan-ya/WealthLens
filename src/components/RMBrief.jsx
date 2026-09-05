@@ -7,7 +7,9 @@ import {
   ShieldCheck,
   AlertCircle,
   MessageSquare,
+  Download,
 } from 'lucide-react'
+import { downloadBriefPdf } from '../utils/briefExport.js'
 import { Card, Badge } from './ui.jsx'
 import { EvidenceInspector, EvidenceButton } from './EvidenceInspector.jsx'
 
@@ -44,6 +46,13 @@ export default function RMBrief({ brief, status = 'draft', clientName, onStatusC
   const badge = STATUS_BADGE[status] || STATUS_BADGE.draft
   const readOnly = !editing
 
+  const handleDownloadPdf = () => {
+    const ok = downloadBriefPdf(draft, clientName)
+    if (!ok) {
+      alert('Please allow pop-ups for this site to download the brief as a PDF.')
+    }
+  }
+
   const update = (field, value) => setDraft((d) => ({ ...d, [field]: value }))
   const updatePoint = (i, value) =>
     setDraft((d) => {
@@ -58,6 +67,14 @@ export default function RMBrief({ brief, status = 'draft', clientName, onStatusC
         <FileText size={15} />
         <span>RM Brief{clientName ? ` — ${clientName}` : ''}</span>
         <Badge tone={badge.tone}>{badge.label}</Badge>
+        <button
+          className="btn btn-sm"
+          style={{ marginLeft: 'auto' }}
+          onClick={handleDownloadPdf}
+          title="Download this brief as a PDF (print → Save as PDF)"
+        >
+          <Download size={14} /> Download PDF
+        </button>
       </div>
 
       <div className="card-pad">
@@ -90,13 +107,15 @@ export default function RMBrief({ brief, status = 'draft', clientName, onStatusC
             )
           }
         >
-          {draft.verifiedEvidence?.map((e) => (
-            <div className="kv" key={e.label}>
+          {draft.verifiedEvidence?.map((e, i) => (
+            <div className="kv" key={`${e.label}-${i}`}>
               <span className="k">
                 {e.label}
-                {e.source && <span className="metric-basis"> — {e.source} · {e.snapshot}</span>}
+                {e.source && (
+                  <span className="metric-basis"> — {e.source}{e.snapshot ? ` · ${e.snapshot}` : ''}</span>
+                )}
               </span>
-              <span className="v">{e.value}</span>
+              {e.value && <span className="v">{e.value}</span>}
             </div>
           ))}
         </Section>
