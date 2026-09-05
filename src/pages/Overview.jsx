@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Users, AlertTriangle, Eye, CircleCheck } from 'lucide-react'
+import { ArrowRight, Users, AlertTriangle, Eye, CircleCheck, ChevronDown, ShieldAlert, Activity } from 'lucide-react'
 import { Card, Loading } from '../components/ui.jsx'
-import PriorityClientCard from '../components/PriorityClientCard.jsx'
 import {
   getOfficialRm,
   getOfficialClients,
@@ -54,10 +53,10 @@ export default function Overview() {
   })
 
   const kpis = [
-    { icon: Users, value: rm.clientsMonitored ?? enriched.length, label: 'Clients Monitored', note: 'Across your book' },
-    { icon: AlertTriangle, value: attention.length, label: 'Clients Requiring Attention', note: 'High-priority situations', tone: 'high' },
-    { icon: Eye, value: monitor.length, label: 'Monitor / Watch', note: 'Developing, not urgent', tone: 'warn' },
-    { icon: CircleCheck, value: clear.length, label: 'No Immediate Action', note: 'Stable for now', tone: 'muted' },
+    { icon: Users, value: rm.clientsMonitored ?? enriched.length, label: 'Total clients', note: 'Across your book', tone: 'total' },
+    { icon: AlertTriangle, value: attention.length, label: 'Require attention', note: 'Priority situations', tone: 'high' },
+    { icon: Eye, value: monitor.length, label: 'Monitoring', note: 'Developing, not urgent', tone: 'warn' },
+    { icon: CircleCheck, value: clear.length, label: 'On track', note: 'No immediate action', tone: 'muted' },
   ]
 
   const today = new Intl.DateTimeFormat('en-GB', {
@@ -78,6 +77,10 @@ export default function Overview() {
             <span>{rm.location || 'Asia Pacific desk'}</span>
           </div>
         </div>
+        <div className="overview-quote">
+          <span>“Better conversations<br />build brighter futures.”</span>
+          <small>WealthLens intelligence desk</small>
+        </div>
         <div className="overview-signal">
           <span className="overview-signal-dot" />
           <span><strong>{attention.length} clients</strong> require your attention today.</span>
@@ -97,10 +100,9 @@ export default function Overview() {
         ))}
       </div>
 
-      {/* Clients requiring attention */}
-      <div className="row between overview-section-head" style={{ marginBottom: 16 }}>
+      <div className="row between overview-section-head" style={{ marginBottom: 12 }}>
         <div>
-          <h3 style={{ fontSize: 18 }} className="serif">Clients requiring attention</h3>
+          <h3 style={{ fontSize: 18 }} className="serif"><ShieldAlert size={18} /> Clients requiring your attention</h3>
           <p className="muted" style={{ margin: '4px 0 0', fontSize: 13.5 }}>
             Ranked by relevance to the client, not by how loud the market is.
           </p>
@@ -113,9 +115,10 @@ export default function Overview() {
       {rankedAttention.length === 0 ? (
         <Card className="empty">No clients currently require attention.</Card>
       ) : (
-        <div className="grid cols-2 overview-attention-grid" style={{ gap: 18, marginBottom: 28 }}>
+        <div className="overview-attention-table overview-attention-grid" style={{ marginBottom: 18 }}>
+          <div className="overview-table-head"><span>#</span><span>Client</span><span>Verified trigger</span><span>Priority score</span><span>Actions</span></div>
           {rankedAttention.map((e, i) => (
-            <PriorityClientCard
+            <AttentionRow
               key={e.client.id}
               client={e.client}
               intelligence={e.intel}
@@ -126,54 +129,41 @@ export default function Overview() {
       )}
 
       {/* Monitor list — lighter treatment */}
-      {monitor.length > 0 && (
-        <Card className="overview-monitor" style={{ marginBottom: 24 }}>
-          <div className="card-head">
-            <h3>Monitor / watch</h3>
-            <span className="muted" style={{ fontSize: 12.5 }}>{monitor.length} clients</span>
-          </div>
-          <div>
-            {monitor.map((e) => (
-              <Link
-                to={`/clients/${e.client.id}`}
-                key={e.client.id}
-                className="signal-compact"
-                style={{ display: 'block' }}
-              >
-                <div className="row between">
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{e.client.name}</span>
-                  <span className="badge badge-medium">Monitor</span>
-                </div>
-                <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
-                  {e.client.id} · {e.client.riskProfile} · {e.client.domicile}
-                </div>
-              </Link>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {clear.length > 0 && (
-        <Card className="overview-clear">
-          <button className="overview-clear-toggle" type="button" onClick={() => setClearOpen((open) => !open)} aria-expanded={clearOpen}>
-            <span>
-              <span className="eyebrow">Stable book</span>
-              <strong>Clear / no immediate action</strong>
-            </span>
-            <span className="overview-clear-count">{clear.length} clients <ArrowRight size={14} className={clearOpen ? 'is-open' : ''} /></span>
-          </button>
-          {clearOpen && (
-            <div className="overview-clear-list">
-              {clear.map((e) => (
-                <Link to={`/clients/${e.client.id}`} key={e.client.id} className="overview-clear-item">
-                  <span>{e.client.name}</span><span>{e.client.id} · {e.client.riskProfile}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
+      <div className="overview-lower-grid">
+        <StatusPanel title="Monitoring" subtitle="Clients to keep on your radar" count={monitor.length} icon={Eye} tone="monitor" entries={monitor} />
+        <StatusPanel title="On track" subtitle="No immediate action required" count={clear.length} icon={CircleCheck} tone="clear" entries={clear} collapsible clearOpen={clearOpen} onToggle={() => setClearOpen((open) => !open)} />
+      </div>
     </div>
+  )
+}
+
+function AttentionRow({ client, intelligence, rank }) {
+  const score = intelligence?.priorityScore ?? 0
+  const priority = intelligence?.priority || client.priority || 'NONE'
+  return (
+    <Link to={`/clients/${client.id}`} className="overview-attention-row" data-priority={priority} style={{ '--priority-score': `${Math.min(100, Math.max(0, score))}%` }}>
+      <span className="overview-rank">{rank}</span>
+      <span className="overview-client-cell"><strong>{client.name}</strong><small>{client.id}</small></span>
+      <span className="overview-trigger"><Activity size={15} /><span>{intelligence?.topSignalTitle || 'Verified portfolio signal'}</span></span>
+      <span className="overview-score"><strong>{score}</strong><span className="overview-score-track"><i /></span></span>
+      <span className="overview-review">Review <ArrowRight size={14} /></span>
+    </Link>
+  )
+}
+
+function StatusPanel({ title, subtitle, count, icon: Icon, tone, entries, collapsible = false, clearOpen = false, onToggle }) {
+  const visible = collapsible && !clearOpen ? entries.slice(0, 3) : entries
+  return (
+    <Card className={`overview-status-panel overview-status-${tone}`}>
+      <div className="overview-status-head">
+        <div className="overview-status-title"><span className="overview-status-icon"><Icon size={16} /></span><span><strong>{title}</strong><small>{subtitle}</small></span><b>{count}</b></div>
+        {collapsible && <button type="button" className="overview-view-all" onClick={onToggle}>{clearOpen ? 'Collapse' : 'View all'} <ChevronDown size={14} className={clearOpen ? 'is-open' : ''} /></button>}
+      </div>
+      <div className="overview-status-list">
+        {visible.map((e) => <Link to={`/clients/${e.client.id}`} className="overview-status-row" key={e.client.id}><strong>{e.client.name}</strong><small>{e.client.id}</small><span>{e.intel?.topSignalTitle || 'No immediate action'}</span><em>{e.intel?.priorityScore ?? 0}</em><ArrowRight size={13} /></Link>)}
+      </div>
+      {collapsible && !clearOpen && entries.length > 3 && <button type="button" className="overview-show-more" onClick={onToggle}>Show {entries.length - 3} more clients <ChevronDown size={13} /></button>}
+    </Card>
   )
 }
 
