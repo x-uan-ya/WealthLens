@@ -304,44 +304,25 @@ function deriveBriefSources(brief) {
   return set.size > 0 ? [...set] : ['holdings.csv', 'event_log.csv', 'rm_notes.json']
 }
 
-// Book-level composition for the Portfolios page. Aggregates the official
-// 20-client book from the engine: per-client AUM (USD), current allocation, a
-// YTD figure derived from the first vs latest snapshot total, and the mandate
-// code(s). No fabricated figures — everything comes from /api/*.
+// Book-level composition for the Portfolios page. A SINGLE call to /api/book
+// returns the whole official 20-client book (per-client AUM in USD, current
+// allocation, YTD from first-vs-latest snapshot, mandate code(s)) plus the
+// pre-computed aggregate. This avoids fanning out into 40 per-client requests,
+// which was unreliable on serverless and could blank the page.
+//
+// IMPORTANT: this THROWS on API failure rather than returning an empty book,
+// so the page can show an explicit error state instead of a false "S$0".
 export const getOfficialBook = async () => {
-  const clients = await getOfficialClients()
-  const rows = await Promise.all(
-    clients.map(async (c) => {
-      const [portfolio, snapshots] = await Promise.all([
-        getOfficialPortfolio(c.id),
-        getOfficialSnapshots(c.id),
-      ])
-      const history = (snapshots?.history || []).filter((h) => h.hasData && typeof h.totalUsd === 'number')
-      const first = history[0]
-      const last = history[history.length - 1]
-      const ytdReturn =
-        first && last && first.totalUsd > 0
-          ? Math.round(((last.totalUsd - first.totalUsd) / first.totalUsd) * 1000) / 10
-          : null
-      const mandateCodes = [...new Set((portfolio?.portfolios || []).map((p) => p.mandateCode).filter(Boolean))]
-      return {
-        id: c.id,
-        name: c.name,
-        baseCurrency: c.baseCurrency,
-        priority: c.priority,
-        mandate: mandateCodes.join(', ') || '—',
-        aumUsd: portfolio?.totalUsd ?? c.aumUsd ?? 0,
-        ytdReturn,
-        allocation: (portfolio?.allocation || []).map((a) => ({
-          label: a.assetClass,
-          pct: a.weightPct,
-          valueUsd: a.valueUsd,
-        })),
-        valueSeries: history.map((h) => ({ date: h.snapshotDate, totalUsd: h.totalUsd })),
-      }
-    })
-  )
-  return rows
+  const book = await fetchJson('/api/book') // throws on non-2xx (see fetchJson)
+  if (!book || !Array.isArray(book.clients)) {
+    throw new Error('Book endpoint returned an unexpected shape')
+  }
+  return {
+    clients: book.clients,
+    totalAumUsd: book.totalAumUsd,
+    aggregateAllocation: book.aggregateAllocation || [],
+    clientCount: book.clientCount ?? book.clients.length,
+  }
 }
 
 // The dashboard priority ranking (raw engine output).

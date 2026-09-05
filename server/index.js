@@ -165,6 +165,78 @@ app.get('/api/clients/:id/snapshots/compare', asyncHandler(async (req, res) => {
   res.json(comparison)
 }))
 
+// ─── Book composition (single-call aggregate for the Portfolios page) ───────────
+//
+// Computes the whole official 20-client book server-side in one request, so the
+// frontend never fans out into 40 per-client calls. Everything is derived from
+// the official dataset via the same engine functions used by the per-client
+// endpoints — no fabricated figures.
+app.get('/api/book', asyncHandler(async (req, res) => {
+  const { snapshot = LATEST_SNAPSHOT } = req.query
+  if (!SNAPSHOTS.includes(snapshot)) {
+    return res.status(400).json({ error: `Invalid snapshot. Valid: ${SNAPSHOTS.join(', ')}` })
+  }
+  const store = loadAllData()
+
+  let totalAumUsd = 0
+  const aggregateMap = {}
+  const clients = store.raw.clients.map((c) => {
+    const clientId = c.client_id
+    const portfolio = getClientAggregatedPortfolio(clientId, snapshot)
+    const history = getSnapshotHistory(clientId).filter(
+      (h) => h.hasData && typeof h.totalUsd === 'number'
+    )
+    const first = history[0]
+    const last = history[history.length - 1]
+    const ytdReturn =
+      first && last && first.totalUsd > 0
+        ? Math.round(((last.totalUsd - first.totalUsd) / first.totalUsd) * 1000) / 10
+        : null
+
+    // Mandate code(s) across the client's portfolios.
+    const mandateCodes = [
+      ...new Set((portfolio.portfolios || []).map((p) => p.mandateCode).filter(Boolean)),
+    ]
+
+    const aumUsd = portfolio.totalUsd || 0
+    totalAumUsd += aumUsd
+    for (const a of portfolio.allocation || []) {
+      aggregateMap[a.assetClass] = (aggregateMap[a.assetClass] || 0) + (a.valueUsd || 0)
+    }
+
+    return {
+      id: clientId,
+      name: c.client_name,
+      baseCurrency: c.base_currency,
+      mandate: mandateCodes.join(', ') || '—',
+      aumUsd,
+      ytdReturn,
+      allocation: (portfolio.allocation || []).map((a) => ({
+        label: a.assetClass,
+        pct: a.weightPct,
+        valueUsd: a.valueUsd,
+      })),
+      valueSeries: history.map((h) => ({ date: h.snapshotDate, totalUsd: h.totalUsd })),
+    }
+  })
+
+  const aggregateAllocation = Object.entries(aggregateMap)
+    .map(([label, valueUsd]) => ({
+      label,
+      valueUsd,
+      pct: totalAumUsd > 0 ? Math.round((valueUsd / totalAumUsd) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.valueUsd - a.valueUsd)
+
+  res.json({
+    snapshot,
+    clientCount: clients.length,
+    totalAumUsd,
+    aggregateAllocation,
+    clients,
+  })
+}))
+
 // ─── Intelligence ──────────────────────────────────────────────────────────────
 
 app.get('/api/clients/:id/intelligence', asyncHandler(async (req, res) => {

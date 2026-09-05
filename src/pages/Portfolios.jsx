@@ -32,40 +32,75 @@ const colorFor = (label) => CLASS_COLORS[label] || '#8a9ba3'
 
 export default function Portfolios() {
   const [book, setBook] = useState(null)
+  const [error, setError] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     let active = true
-    getOfficialBook().then((rows) => {
-      if (!active) return
-      setBook(rows)
-      setSelectedId(rows[0]?.id)
-    })
+    setError(null)
+    getOfficialBook()
+      .then((data) => {
+        if (!active) return
+        setBook(data)
+        setSelectedId(data.clients[0]?.id)
+      })
+      .catch((err) => {
+        // Surface the failure explicitly — never render S$0 as if it were valid.
+        if (active) setError(err?.message || 'Failed to load the book')
+      })
     return () => {
       active = false
     }
   }, [])
 
+  const clients = book?.clients || []
+
+  // Aggregate allocation comes pre-computed from the server; fall back to a
+  // client-side rollup only if the server omitted it.
   const bookAllocation = useMemo(() => {
     if (!book) return []
+    if (Array.isArray(book.aggregateAllocation) && book.aggregateAllocation.length > 0) {
+      return book.aggregateAllocation.map((a) => ({ label: a.label, value: a.valueUsd, pct: a.pct }))
+    }
     const totals = {}
     let totalAum = 0
-    for (const c of book) {
+    for (const c of clients) {
       totalAum += c.aumUsd
-      for (const a of c.allocation) {
-        totals[a.label] = (totals[a.label] || 0) + (a.valueUsd || 0)
-      }
+      for (const a of c.allocation) totals[a.label] = (totals[a.label] || 0) + (a.valueUsd || 0)
     }
     return Object.entries(totals)
       .map(([label, value]) => ({ label, value, pct: totalAum > 0 ? (value / totalAum) * 100 : 0 }))
       .sort((a, b) => b.value - a.value)
-  }, [book])
+  }, [book, clients])
+
+  // Explicit error state — the page does NOT pretend the book is empty/zero.
+  if (error) {
+    return (
+      <div>
+        <PageHeader
+          eyebrow="Portfolios"
+          title="Book composition"
+          subtitle="How your clients' capital is allocated across the book."
+        />
+        <Card className="card-pad">
+          <h3 style={{ margin: '0 0 8px' }}>Could not load the book</h3>
+          <p className="muted" style={{ margin: '0 0 12px' }}>
+            The book data could not be retrieved from the intelligence engine. This is a data
+            connection issue, not an empty book. {error}
+          </p>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </Card>
+      </div>
+    )
+  }
 
   if (!book) return <Loading label="Aggregating portfolios" />
 
-  const selected = book.find((c) => c.id === selectedId)
-  const totalAum = book.reduce((s, c) => s + c.aumUsd, 0)
+  const selected = clients.find((c) => c.id === selectedId)
+  const totalAum = book.totalAumUsd ?? clients.reduce((s, c) => s + c.aumUsd, 0)
   const perfData = (selected?.valueSeries || []).map((p) => ({
     date: p.date?.slice(2), // e.g. 26-08-26 -> compact label
     value: Math.round((p.totalUsd / 1_000_000) * 10) / 10,
@@ -132,7 +167,7 @@ export default function Portfolios() {
               </tr>
             </thead>
             <tbody>
-              {book.map((c) => (
+              {clients.map((c) => (
                 <tr key={c.id} onClick={() => navigate(`/clients/${c.id}`)} style={{ cursor: 'pointer' }}>
                   <td style={{ fontWeight: 600 }}>{c.name}</td>
                   <td className="muted">{c.mandate}</td>
@@ -159,7 +194,7 @@ export default function Portfolios() {
             onChange={(e) => setSelectedId(e.target.value)}
             style={selectStyle}
           >
-            {book.map((c) => (
+            {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
