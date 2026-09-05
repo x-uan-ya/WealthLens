@@ -238,22 +238,21 @@ const MEETING_TYPE_BY_PRIORITY = {
   low: 'Check-in',
 }
 
-// Build the scheduled briefings list from the official book. Only clients with
-// deep intelligence get a briefing (those the engine can ground a brief for).
+// Build the scheduled briefings list from the official book.
+//
+// Uses ONLY the priority ranking (a single /api/intelligence/priority call).
+// Every scored client has at least one signal, so a grounded brief can be
+// produced for each — there is no need to fan out into per-client intelligence
+// requests (that previously fired ~40 calls and, if any failed on serverless,
+// left the page stuck on "Assembling briefings").
 export const getOfficialBriefings = async () => {
   const { raw } = await loadPriorityIndex()
   const ranked = raw?.prioritisedList || []
 
-  // Check which clients actually have intelligence signals (deep clients).
-  const withIntel = await Promise.all(
-    ranked.map(async (r) => ({ r, has: await hasClientIntelligence(r.clientId) }))
-  )
-  const deep = withIntel.filter((x) => x.has).map((x) => x.r)
-
   // Space the meetings out over the coming days for a realistic schedule.
   const now = Date.now()
   const DAY = 24 * 60 * 60 * 1000
-  return deep.map((r, i) => ({
+  return ranked.map((r, i) => ({
     id: `BRIEF-${r.clientId}`,
     clientId: r.clientId,
     clientName: r.clientName,

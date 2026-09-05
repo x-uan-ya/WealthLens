@@ -18,6 +18,7 @@ import { formatDateTime, initialsOf } from '../utils/format.js'
 
 export default function Briefings() {
   const [briefings, setBriefings] = useState(null)
+  const [loadError, setLoadError] = useState(null)
   const [activeId,  setActiveId]  = useState(null)
   // Generated brief bodies, cached per briefing id once produced.
   const [content,   setContent]   = useState({})
@@ -31,17 +32,27 @@ export default function Briefings() {
   const [searchParams] = useSearchParams()
 
   useEffect(() => {
-    getOfficialBriefings().then((bs) => {
-      const sorted = [...bs].sort((a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor))
-      setBriefings(sorted)
-      // If ?client=<id> is present, open that client's briefing automatically.
-      // Falls back to the first briefing if no match is found.
-      const clientParam = searchParams.get('client')
-      const matched = clientParam
-        ? sorted.find((b) => b.clientId === clientParam)
-        : null
-      setActiveId(matched?.id ?? sorted[0]?.id)
-    })
+    let active = true
+    setLoadError(null)
+    getOfficialBriefings()
+      .then((bs) => {
+        if (!active) return
+        const sorted = [...bs].sort((a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor))
+        setBriefings(sorted)
+        // If ?client=<id> is present, open that client's briefing automatically.
+        // Falls back to the first briefing if no match is found.
+        const clientParam = searchParams.get('client')
+        const matched = clientParam ? sorted.find((b) => b.clientId === clientParam) : null
+        setActiveId(matched?.id ?? sorted[0]?.id)
+      })
+      .catch((err) => {
+        // Never leave the page stuck on the loading spinner — surface the failure.
+        if (active) {
+          setLoadError(err?.message || 'Failed to load briefings')
+          setBriefings([])
+        }
+      })
+    return () => { active = false }
   }, [])
 
   // Generate the selected briefing's body on demand (once), then cache it.
@@ -56,6 +67,9 @@ export default function Briefings() {
       .then((c) => {
         if (active) setContent((prev) => ({ ...prev, [activeId]: c || { _failed: true } }))
       })
+      .catch(() => {
+        if (active) setContent((prev) => ({ ...prev, [activeId]: { _failed: true } }))
+      })
       .finally(() => {
         if (active) setGenerating(false)
       })
@@ -63,6 +77,26 @@ export default function Briefings() {
   }, [activeId, briefings])
 
   if (!briefings) return <Loading label="Assembling briefings" />
+
+  if (loadError) {
+    return (
+      <div>
+        <PageHeader
+          eyebrow="Briefings"
+          title="Walk in prepared"
+          subtitle="Each briefing packages the intelligence behind a meeting into talking points and a prep checklist."
+        />
+        <Card className="card-pad">
+          <h3 style={{ margin: '0 0 8px' }}>Could not load briefings</h3>
+          <p className="muted" style={{ margin: '0 0 12px' }}>
+            The briefing list could not be retrieved from the intelligence engine. This is a data
+            connection issue. {loadError}
+          </p>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Retry</button>
+        </Card>
+      </div>
+    )
+  }
 
   if (briefings.length === 0) {
     return (
